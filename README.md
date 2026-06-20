@@ -14,25 +14,6 @@
 - **두뇌 활력 리포트** — 음성·키스트로크 분석 기반 주간 변화 추이 (자녀 모드)
 - **키스트로크 수집 모듈** — TextWatcher 기반 입력 패턴 측정 (ms 단위)
 
-## 기술 스택
-
-| 항목 | 기술 |
-|---|---|
-| 언어 | Kotlin |
-| IDE | Android Studio |
-| 인증 / DB | Firebase Auth, Firebase Realtime DB |
-| 푸시 알림 | Firebase Cloud Messaging (FCM) |
-| 차트 | MPAndroidChart |
-
-## 개발 환경 설정
-
-1. Android Studio 설치 (최신 stable)
-2. 레퍼지토리 clone
-3. `google-services.json`을 `app/` 폴더에 추가 (팀 채널에서 공유)
-4. `local.properties`에 SDK 경로 설정 후 빌드
-
-> `google-services.json`은 `.gitignore`에 포함되어 있으므로 직접 공유 필요
-
 ## 기여하기
 
 [CONTRIBUTING.md](./CONTRIBUTING.md) 참고
