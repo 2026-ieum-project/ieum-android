@@ -1,0 +1,22 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.codeGeneration/
+
+# Firebase 설정 파일 (직접 공유 필요)
+google-services.json
+
+# APK / AAB 빌드 결과물
+*.apk
+*.aab
+*.ap_
+app/release/
+
+# 키스토어
+*.jks
+*.keystore
