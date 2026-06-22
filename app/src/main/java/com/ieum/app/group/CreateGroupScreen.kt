@@ -1,14 +1,20 @@
 package com.ieum.app.group
 
 import com.ieum.app.NavRoute
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -33,70 +40,118 @@ fun CreateGroupScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(MaterialTheme.colorScheme.background)
+            .padding(28.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text("가족 그룹 만들기", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
-
-        if (inviteCode.isEmpty()) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("🏠", fontSize = 48.sp)
+            Spacer(Modifier.height(12.dp))
             Text(
-                "그룹을 만들면 고유한 초대 코드가 발급됩니다.\n가족에게 코드를 공유해 주세요.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = {
-                    isLoading = true
-                    errorMessage = ""
-                    createGroup(uid) { code, error ->
-                        isLoading = false
-                        if (code != null) inviteCode = code
-                        else errorMessage = error ?: "그룹 생성 실패"
-                    }
-                },
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (isLoading) "생성 중..." else "그룹 만들기")
-            }
-        } else {
-            Text("그룹이 생성됐습니다!", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(24.dp))
-            Text("초대 코드", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                inviteCode,
-                fontSize = 40.sp,
+                "가족 그룹 만들기",
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 6.sp,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "이 코드를 조부모/손자녀에게 공유하세요.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = {
-                    navController.navigate(NavRoute.Chat.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("채팅 시작")
-            }
-        }
+            Spacer(Modifier.height(4.dp))
 
-        if (errorMessage.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(errorMessage, color = MaterialTheme.colorScheme.error)
+            if (inviteCode.isEmpty()) {
+                Text(
+                    "그룹을 만들면 고유한 초대 코드가 발급됩니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(32.dp))
+                Button(
+                    onClick = {
+                        isLoading = true
+                        errorMessage = ""
+                        createGroup(uid) { code, error ->
+                            isLoading = false
+                            if (code != null) inviteCode = code
+                            else errorMessage = error ?: "그룹 생성 실패"
+                        }
+                    },
+                    enabled = !isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(
+                        if (isLoading) "생성 중..." else "그룹 만들기",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            } else {
+                Text(
+                    "가족 그룹이 만들어졌어요!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(Modifier.height(28.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "초대 코드",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            inviteCode,
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 8.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "이 코드를 조부모님과 손자녀에게 공유해 주세요",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(28.dp))
+                Button(
+                    onClick = {
+                        navController.navigate(NavRoute.Chat.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("💬  채팅 시작하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            }
+
+            if (errorMessage.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
