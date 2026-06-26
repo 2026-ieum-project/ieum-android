@@ -8,7 +8,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -87,6 +87,7 @@ fun ChatScreen(navController: NavController) {
     val listState = rememberLazyListState()
     val recorder = remember { mutableStateOf<MediaRecorder?>(null) }
     val audioFile = remember { mutableStateOf<File?>(null) }
+    val recordingStartTime = remember { mutableStateOf(0L) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -102,6 +103,18 @@ fun ChatScreen(navController: NavController) {
                 userName = snapshot.child("name").getValue(String::class.java) ?: ""
                 isLoading = false
             }
+    }
+
+    // 화면 나갈 때 녹음 정리
+    DisposableEffect(Unit) {
+        onDispose {
+            recorder.value?.let { rec ->
+                try { rec.stop() } catch (_: Exception) {}
+                rec.release()
+                recorder.value = null
+            }
+            audioFile.value?.delete()
+        }
     }
 
     // 실시간 메시지 리스너
@@ -179,7 +192,7 @@ fun ChatScreen(navController: NavController) {
                         .fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 음성 녹음 버튼 (꾹 누르는 동안 녹음)
+                    // 음성 녹음 버튼 (탭 토글: 누르면 녹음, 다시 누르면 전송)
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -188,24 +201,25 @@ fun ChatScreen(navController: NavController) {
                                 else MaterialTheme.colorScheme.primary,
                                 shape = CircleShape
                             )
-                            .pointerInput(groupId) {
-                                detectTapGestures(
-                                    onPress = {
-                                        if (ContextCompat.checkSelfPermission(
-                                                context, Manifest.permission.RECORD_AUDIO
-                                            ) != PackageManager.PERMISSION_GRANTED
-                                        ) {
-                                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                            return@detectTapGestures
-                                        }
-                                        if (groupId.isEmpty()) return@detectTapGestures
+                            .clickable {
+                                if (ContextCompat.checkSelfPermission(
+                                        context, Manifest.permission.RECORD_AUDIO
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    return@clickable
+                                }
+                                if (groupId.isEmpty()) return@clickable
 
-                                        val file = File(
-                                            context.cacheDir,
-                                            "voice_${System.currentTimeMillis()}.m4a"
-                                        )
-                                        audioFile.value = file
+                                if (!isRecording) {
+                                    // 녹음 시작
+                                    val file = File(
+                                        context.cacheDir,
+                                        "voice_${System.currentTimeMillis()}.m4a"
+                                    )
+                                    audioFile.value = file
 
+                                    try {
                                         val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                             MediaRecorder(context)
                                         } else {
@@ -221,30 +235,51 @@ fun ChatScreen(navController: NavController) {
                                         }
                                         recorder.value = rec
                                         isRecording = true
+                                        recordingStartTime.value = System.currentTimeMillis()
+                                    } catch (e: Exception) {
+                                        file.delete()
+                                        Toast.makeText(context, "녹음을 시작할 수 없습니다", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    // 녹음 중지 + 전송
+                                    val rec = recorder.value
+                                    val file = audioFile.value
+                                    val duration = System.currentTimeMillis() - recordingStartTime.value
 
-                                        tryAwaitRelease()
+                                    isRecording = false
 
-                                        isRecording = false
-                                        rec.stop()
-                                        rec.release()
+                                    if (rec != null) {
+                                        try {
+                                            rec.stop()
+                                            rec.release()
+                                        } catch (e: Exception) {
+                                            rec.release()
+                                            file?.delete()
+                                            recorder.value = null
+                                            return@clickable
+                                        }
                                         recorder.value = null
+                                    }
 
+                                    if (file != null && file.exists() && duration >= 500) {
                                         val bytes = file.readBytes()
                                         file.delete()
-
                                         scope.launch {
                                             MessageRepository(groupId).sendVoiceMessage(
                                                 uid, userName, bytes
                                             ) { _, _ -> }
                                         }
+                                    } else {
+                                        file?.delete()
+                                        Toast.makeText(context, "녹음이 너무 짧습니다", Toast.LENGTH_SHORT).show()
                                     }
-                                )
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
-                            contentDescription = "음성 메시지",
+                            contentDescription = if (isRecording) "녹음 중지" else "녹음 시작",
                             tint = Color.White
                         )
                     }
@@ -314,14 +349,23 @@ private fun MessageBubble(message: Message, isMine: Boolean) {
                             onClick = {
                                 if (isPlaying) return@IconButton
                                 isPlaying = true
-                                MediaPlayer().apply {
-                                    setDataSource(message.content)
-                                    prepareAsync()
-                                    setOnPreparedListener { it.start() }
-                                    setOnCompletionListener {
-                                        isPlaying = false
-                                        it.release()
+                                try {
+                                    MediaPlayer().apply {
+                                        setDataSource(message.content)
+                                        setOnErrorListener { mp, _, _ ->
+                                            isPlaying = false
+                                            mp.release()
+                                            true
+                                        }
+                                        setOnPreparedListener { it.start() }
+                                        setOnCompletionListener {
+                                            isPlaying = false
+                                            it.release()
+                                        }
+                                        prepareAsync()
                                     }
+                                } catch (e: Exception) {
+                                    isPlaying = false
                                 }
                             }
                         ) {

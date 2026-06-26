@@ -45,12 +45,18 @@ fun RegisterScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf("grandparent") }
+    var selectedGender by remember { mutableStateOf("female") }
     var errorMessage by remember { mutableStateOf("") }
 
     val roles = listOf(
         "grandparent" to "👴 조부모",
         "child" to "🧑 자녀",
         "grandchild" to "🧒 손자녀"
+    )
+
+    val genders = listOf(
+        "female" to "여성",
+        "male" to "남성"
     )
 
     Column(
@@ -150,6 +156,45 @@ fun RegisterScreen(navController: NavController) {
             }
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "성별",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    genders.forEach { (value, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            RadioButton(
+                                selected = selectedGender == value,
+                                onClick = { selectedGender = value },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if (errorMessage.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -166,6 +211,7 @@ fun RegisterScreen(navController: NavController) {
                         val userData = mapOf(
                             "name" to name,
                             "role" to selectedRole,
+                            "gender" to selectedGender,
                             "groupId" to ""
                         )
                         FirebaseDatabase.getInstance().reference

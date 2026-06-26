@@ -1,0 +1,8 @@
+# Android SDK 경로 (Android Studio가 자동 설정)
+sdk.dir=
+
+# Oracle Cloud Object Storage
+ORACLE_NAMESPACE=
+ORACLE_BUCKET_NAME=
+ORACLE_REGION=
+ORACLE_PAR_URL=

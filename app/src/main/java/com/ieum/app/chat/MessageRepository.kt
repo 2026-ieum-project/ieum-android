@@ -4,7 +4,10 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.google.firebase.storage.FirebaseStorage
+import com.ieum.app.storage.OracleStorageUploader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MessageRepository(private val groupId: String) {
 
@@ -12,9 +15,7 @@ class MessageRepository(private val groupId: String) {
         .child("messages")
         .child(groupId)
 
-    private val storageRef = FirebaseStorage.getInstance().reference
-        .child("voices")
-        .child(groupId)
+    private val uploader = OracleStorageUploader()
 
     fun sendTextMessage(
         senderId: String,
@@ -44,27 +45,34 @@ class MessageRepository(private val groupId: String) {
     ) {
         val ref = messagesRef.push()
         val messageId = ref.key ?: return
-        val fileRef = storageRef.child("$messageId.m4a")
+        val objectName = "voices/$groupId/$messageId.m4a"
 
-        fileRef.putBytes(audioBytes)
-            .continueWithTask { task ->
-                if (!task.isSuccessful) throw task.exception!!
-                fileRef.downloadUrl
-            }
-            .addOnSuccessListener { uri ->
-                val message = Message(
-                    id = messageId,
-                    senderId = senderId,
-                    senderName = senderName,
-                    type = Message.TYPE_VOICE,
-                    content = uri.toString(),
-                    timestamp = System.currentTimeMillis()
-                )
-                ref.setValue(message)
-                    .addOnSuccessListener { onResult(true, null) }
-                    .addOnFailureListener { e -> onResult(false, e.message) }
-            }
-            .addOnFailureListener { e -> onResult(false, e.message) }
+        CoroutineScope(Dispatchers.IO).launch {
+            val result = uploader.upload(
+                data = audioBytes,
+                objectName = objectName,
+                contentType = "audio/mp4"
+            )
+
+            result.fold(
+                onSuccess = { url ->
+                    val message = Message(
+                        id = messageId,
+                        senderId = senderId,
+                        senderName = senderName,
+                        type = Message.TYPE_VOICE,
+                        content = url,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    ref.setValue(message)
+                        .addOnSuccessListener { onResult(true, null) }
+                        .addOnFailureListener { e -> onResult(false, e.message) }
+                },
+                onFailure = { e ->
+                    onResult(false, e.message)
+                }
+            )
+        }
     }
 
     fun listenMessages(onMessages: (List<Message>) -> Unit): ValueEventListener {

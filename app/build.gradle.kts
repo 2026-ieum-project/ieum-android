@@ -1,8 +1,18 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
 }
+
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.inputStream().use { localProps.load(it) }
+}
+
+fun localProp(key: String): String = (localProps[key] as? String) ?: ""
 
 android {
     namespace = "com.ieum.app"
@@ -16,6 +26,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "ORACLE_NAMESPACE", "\"${localProp("ORACLE_NAMESPACE")}\"")
+        buildConfigField("String", "ORACLE_BUCKET_NAME", "\"${localProp("ORACLE_BUCKET_NAME")}\"")
+        buildConfigField("String", "ORACLE_REGION", "\"${localProp("ORACLE_REGION")}\"")
+        buildConfigField("String", "ORACLE_PAR_URL", "\"${localProp("ORACLE_PAR_URL")}\"")
     }
 
     buildTypes {
@@ -31,6 +46,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -48,7 +64,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
-    implementation("com.google.firebase:firebase-storage")
+    // Oracle Object Storage 업로드용
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.compose.material:material-icons-extended")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
