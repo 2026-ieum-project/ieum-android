@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.ieum.app.auth.ForgotPasswordScreen
+import com.ieum.app.ui.theme.IeumTheme
 import com.ieum.app.auth.LoginScreen
 import com.ieum.app.auth.RegisterScreen
 import com.ieum.app.auth.SplashScreen
@@ -21,6 +22,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            IeumTheme {
             val navController = rememberNavController()
             NavHost(
                 navController = navController,
@@ -36,6 +38,7 @@ class MainActivity : ComponentActivity() {
                 composable(NavRoute.CreateGroup.route) { CreateGroupScreen(navController) }
                 composable(NavRoute.JoinGroup.route) { JoinGroupScreen(navController) }
                 composable(NavRoute.Chat.route) { ChatScreen(navController) }
+            }
             }
         }
     }
