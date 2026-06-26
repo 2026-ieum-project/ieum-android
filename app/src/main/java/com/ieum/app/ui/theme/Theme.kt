@@ -4,28 +4,29 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val WarmColorScheme = lightColorScheme(
+private val IeumColorScheme = lightColorScheme(
     primary = Coral,
     onPrimary = BubbleSentText,
-    primaryContainer = CoralContainer,
-    onPrimaryContainer = OnCoralContainer,
-    secondary = WarmBrown,
-    onSecondary = WarmSurface,
-    secondaryContainer = WarmBrownContainer,
-    onSecondaryContainer = OnWarmBrownContainer,
-    background = WarmBackground,
-    onBackground = BubbleReceivedText,
-    surface = WarmSurface,
-    onSurface = BubbleReceivedText,
-    surfaceVariant = WarmSurfaceVariant,
-    onSurfaceVariant = OnWarmSurfaceVariant,
-    outline = WarmOutline,
+    primaryContainer = CoralSoft,
+    onPrimaryContainer = CoralDark,
+    secondary = Sage,
+    onSecondary = BubbleSentText,
+    secondaryContainer = SageSoft,
+    onSecondaryContainer = SageDark,
+    background = Paper,
+    onBackground = Ink,
+    surface = Surface,
+    onSurface = Ink,
+    surfaceVariant = CardBorder,
+    onSurfaceVariant = InkSub,
+    outline = MutedSoft,
+    outlineVariant = Line,
 )
 
 @Composable
 fun IeumTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = WarmColorScheme,
+        colorScheme = IeumColorScheme,
         typography = Typography,
         content = content
     )
