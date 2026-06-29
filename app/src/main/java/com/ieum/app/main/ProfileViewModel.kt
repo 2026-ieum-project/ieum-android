@@ -3,6 +3,7 @@ package com.ieum.app.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ieum.app.data.repository.UserRepository
+import com.ieum.app.notification.FcmTokenManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +39,10 @@ class ProfileViewModel(
     }
 
     fun logout() {
-        userRepo.logout()
-        _uiState.value = _uiState.value.copy(isLoggedOut = true)
+        viewModelScope.launch {
+            FcmTokenManager.unregisterToken()
+            userRepo.logout()
+            _uiState.value = _uiState.value.copy(isLoggedOut = true)
+        }
     }
 }

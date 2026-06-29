@@ -3,6 +3,7 @@ package com.ieum.app.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ieum.app.data.repository.UserRepository
+import com.ieum.app.notification.FcmTokenManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,7 @@ class SplashViewModel(
                 if (role.isEmpty()) {
                     _destination.value = SplashDestination.Login
                 } else {
+                    FcmTokenManager.registerToken()
                     _destination.value = SplashDestination.RoleMain(role)
                 }
             }
@@ -77,6 +79,7 @@ class LoginViewModel(
         viewModelScope.launch {
             userRepo.login(state.email.trim(), state.password)
                 .onSuccess { uid ->
+                    FcmTokenManager.registerToken()
                     val role = userRepo.getUserRole(uid).getOrDefault("")
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
@@ -136,6 +139,7 @@ class RegisterViewModel(
                 role = state.selectedRole,
                 gender = state.selectedGender
             ).onSuccess {
+                FcmTokenManager.registerToken()
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     navigateToRole = state.selectedRole

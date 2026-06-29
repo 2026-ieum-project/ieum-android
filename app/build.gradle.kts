@@ -65,6 +65,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-messaging")
     // Oracle Object Storage 업로드용
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // 이미지 로딩
