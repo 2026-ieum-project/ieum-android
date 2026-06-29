@@ -18,9 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 import com.ieum.app.NavRoute
 import com.ieum.app.ui.theme.*
 
@@ -54,7 +53,6 @@ fun PlaceholderTab(
     }
 }
 
-// 이야기 (조부모)
 @Composable
 fun StoryTab() {
     PlaceholderTab(
@@ -64,7 +62,6 @@ fun StoryTab() {
     )
 }
 
-// 사진 (조부모)
 @Composable
 fun PhotoTab() {
     PlaceholderTab(
@@ -74,7 +71,6 @@ fun PhotoTab() {
     )
 }
 
-// 리포트 (자녀)
 @Composable
 fun ReportTab() {
     PlaceholderTab(
@@ -84,7 +80,6 @@ fun ReportTab() {
     )
 }
 
-// 추억 (자녀·손자녀)
 @Composable
 fun MemoryTab() {
     PlaceholderTab(
@@ -94,24 +89,20 @@ fun MemoryTab() {
     )
 }
 
-// 나 (자녀·손자녀)
 @Composable
-fun ProfileTab(navController: NavController? = null) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid
-    var userName by remember { mutableStateOf("") }
-    var userRole by remember { mutableStateOf("") }
+fun ProfileTab(navController: NavController? = null, viewModel: ProfileViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(uid) {
-        if (uid == null) return@LaunchedEffect
-        FirebaseDatabase.getInstance().reference.child("users").child(uid).get()
-            .addOnSuccessListener { snapshot ->
-                userName = snapshot.child("name").getValue(String::class.java) ?: ""
-                userRole = snapshot.child("role").getValue(String::class.java) ?: ""
+    LaunchedEffect(state.isLoggedOut) {
+        if (state.isLoggedOut) {
+            navController?.navigate(NavRoute.Login.route) {
+                popUpTo(0) { inclusive = true }
             }
+        }
     }
 
-    val roleLabel = when (userRole) {
+    val roleLabel = when (state.userRole) {
         "grandparent" -> "조부모"
         "child" -> "자녀"
         "grandchild" -> "손자녀"
@@ -130,13 +121,11 @@ fun ProfileTab(navController: NavController? = null) {
         ) {
             Spacer(Modifier.height(16.dp))
 
-            // 프로필 카드
             SectionCard {
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 아바타
                     Box(
                         modifier = Modifier
                             .size(80.dp)
@@ -145,13 +134,13 @@ fun ProfileTab(navController: NavController? = null) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            userName.firstOrNull()?.toString() ?: "?",
+                            state.userName.firstOrNull()?.toString() ?: "?",
                             fontSize = 32.sp, fontWeight = FontWeight.W800, color = Coral
                         )
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        userName.ifEmpty { "사용자" },
+                        state.userName.ifEmpty { "사용자" },
                         fontSize = 22.sp, fontWeight = FontWeight.W800, color = Ink
                     )
                     if (roleLabel.isNotEmpty()) {
@@ -163,7 +152,6 @@ fun ProfileTab(navController: NavController? = null) {
 
             Spacer(Modifier.height(24.dp))
 
-            // 로그아웃 버튼
             SectionCard {
                 Surface(
                     onClick = { showLogoutDialog = true },
@@ -200,10 +188,7 @@ fun ProfileTab(navController: NavController? = null) {
             confirmButton = {
                 TextButton(onClick = {
                     showLogoutDialog = false
-                    FirebaseAuth.getInstance().signOut()
-                    navController?.navigate(NavRoute.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    viewModel.logout()
                 }) {
                     Text("로그아웃", color = Color(0xFFCC4444), fontWeight = FontWeight.Bold)
                 }
@@ -217,7 +202,6 @@ fun ProfileTab(navController: NavController? = null) {
     }
 }
 
-// 사진 보내기 (손자녀)
 @Composable
 fun SendPhotoTab() {
     PlaceholderTab(

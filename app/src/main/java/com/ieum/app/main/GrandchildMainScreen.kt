@@ -27,33 +27,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
 
 private data class MemoryItem(
     val title: String,
     val date: String,
-    val type: String, // "photo", "voice", "diary"
+    val type: String,
 )
 
 @Composable
-fun GrandchildMainScreen(navController: NavController) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-    var groupId by remember { mutableStateOf<String?>(null) }
-    var userName by remember { mutableStateOf("") }
+fun GrandchildMainScreen(navController: NavController, viewModel: GrandchildViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // 조부모 정보
-    var grandparentName by remember { mutableStateOf<String?>(null) }
-    var hasGrandparent by remember { mutableStateOf<Boolean?>(null) }
-    var inviteCode by remember { mutableStateOf("") }
     var codeCopied by remember { mutableStateOf(false) }
-    var messageCount by remember { mutableIntStateOf(0) }
-
     val clipboardManager = LocalClipboardManager.current
 
     val memories = remember {
@@ -64,83 +51,17 @@ fun GrandchildMainScreen(navController: NavController) {
         )
     }
 
-    LaunchedEffect(Unit) {
-        FirebaseDatabase.getInstance().reference.child("users").child(uid).get()
-            .addOnSuccessListener { snapshot ->
-                groupId = snapshot.child("groupId").getValue(String::class.java) ?: ""
-                userName = snapshot.child("name").getValue(String::class.java) ?: ""
-            }
-    }
-
-    // 그룹 로드 후 조부모 확인
-    LaunchedEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@LaunchedEffect
-
-        val db = FirebaseDatabase.getInstance().reference
-
-        db.child("groups").child(gid).child("inviteCode").get()
-            .addOnSuccessListener { snap ->
-                inviteCode = snap.getValue(String::class.java) ?: ""
-            }
-
-        db.child("groups").child(gid).child("members").get()
-            .addOnSuccessListener { membersSnap ->
-                var foundGrandparentUid: String? = null
-                for (child in membersSnap.children) {
-                    val role = child.getValue(String::class.java)
-                    if (role == "grandparent") {
-                        foundGrandparentUid = child.key
-                        break
-                    }
-                }
-
-                if (foundGrandparentUid != null) {
-                    db.child("users").child(foundGrandparentUid).child("name").get()
-                        .addOnSuccessListener { nameSnap ->
-                            grandparentName = nameSnap.getValue(String::class.java) ?: "할머니"
-                            hasGrandparent = true
-                        }
-                        .addOnFailureListener {
-                            grandparentName = "할머니"
-                            hasGrandparent = true
-                        }
-                } else {
-                    hasGrandparent = false
-                }
-            }
-            .addOnFailureListener {
-                hasGrandparent = false
-            }
-    }
-
-    // 메시지 수 실시간 리스너
-    DisposableEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@DisposableEffect onDispose {}
-
-        val ref = FirebaseDatabase.getInstance().reference.child("messages").child(gid)
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                messageCount = snapshot.childrenCount.toInt()
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        ref.addValueEventListener(listener)
-        onDispose { ref.removeEventListener(listener) }
-    }
-
     Scaffold(
         containerColor = Paper,
         bottomBar = {
             GrandchildBottomBar(selectedTab) { selectedTab = it }
         }
     ) { padding ->
-        if (groupId == null) {
+        if (state.groupId == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("로딩 중...", color = Muted)
             }
-        } else if (groupId!!.isEmpty()) {
+        } else if (state.groupId!!.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 contentAlignment = Alignment.Center
@@ -196,7 +117,7 @@ fun GrandchildMainScreen(navController: NavController) {
                             Text("우리 가족", fontSize = 14.sp, fontWeight = FontWeight.W700, color = Muted)
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                "${userName.ifEmpty { "사용자" }}님, 안녕하세요",
+                                "${state.userName.ifEmpty { "사용자" }}님, 안녕하세요",
                                 fontSize = 22.sp, fontWeight = FontWeight.W800, color = Ink
                             )
                         }
@@ -206,7 +127,7 @@ fun GrandchildMainScreen(navController: NavController) {
 
                 // 2. 조부모 상태에 따라 다른 카드
                 item {
-                    when (hasGrandparent) {
+                    when (state.hasGrandparent) {
                         null -> {
                             Box(
                                 modifier = Modifier
@@ -219,7 +140,6 @@ fun GrandchildMainScreen(navController: NavController) {
                             }
                         }
                         false -> {
-                            // 조부모가 없는 경우: 초대 카드
                             Surface(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
@@ -268,7 +188,7 @@ fun GrandchildMainScreen(navController: NavController) {
                                             Text("초대 코드", fontSize = 12.sp, fontWeight = FontWeight.W700, color = Muted)
                                             Spacer(Modifier.height(8.dp))
                                             Text(
-                                                inviteCode.ifEmpty { "------" },
+                                                state.inviteCode.ifEmpty { "------" },
                                                 fontSize = 32.sp, fontWeight = FontWeight.W800,
                                                 letterSpacing = 6.sp, color = Coral
                                             )
@@ -278,8 +198,8 @@ fun GrandchildMainScreen(navController: NavController) {
 
                                     Button(
                                         onClick = {
-                                            if (inviteCode.isNotEmpty()) {
-                                                clipboardManager.setText(AnnotatedString(inviteCode))
+                                            if (state.inviteCode.isNotEmpty()) {
+                                                clipboardManager.setText(AnnotatedString(state.inviteCode))
                                                 codeCopied = true
                                             }
                                         },
@@ -303,7 +223,6 @@ fun GrandchildMainScreen(navController: NavController) {
                             }
                         }
                         true -> {
-                            // 조부모가 있는 경우: 음성 메시지 히어로
                             Surface(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
@@ -322,11 +241,11 @@ fun GrandchildMainScreen(navController: NavController) {
                                 ) {
                                     Column(modifier = Modifier.padding(22.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Avatar(grandparentName?.first()?.toString() ?: "할", 48)
+                                            Avatar(state.grandparentName?.first()?.toString() ?: "할", 48)
                                             Spacer(Modifier.width(12.dp))
                                             Column {
                                                 Text(
-                                                    "${grandparentName ?: "할머니"} 할머니",
+                                                    "${state.grandparentName ?: "할머니"} 할머니",
                                                     fontSize = 16.sp, fontWeight = FontWeight.W800, color = Ink
                                                 )
                                                 Spacer(Modifier.height(2.dp))
@@ -378,8 +297,8 @@ fun GrandchildMainScreen(navController: NavController) {
                     }
                 }
 
-                // 3. 사진 보내기 프롬프트 (조부모 있을 때만)
-                if (hasGrandparent == true) {
+                // 3. 사진 보내기 프롬프트
+                if (state.hasGrandparent == true) {
                     item {
                         SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Column(modifier = Modifier.padding(20.dp)) {
@@ -387,13 +306,13 @@ fun GrandchildMainScreen(navController: NavController) {
                                     Icon(Icons.Default.Image, null, tint = Sage, modifier = Modifier.size(22.dp))
                                     Spacer(Modifier.width(10.dp))
                                     Text(
-                                        "${grandparentName ?: "할머니"}께 옛날 사진 보내기",
+                                        "${state.grandparentName ?: "할머니"}께 옛날 사진 보내기",
                                         fontSize = 17.sp, fontWeight = FontWeight.W800, color = Ink
                                     )
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "사진을 보내면 ${grandparentName ?: "할머니"}가 그때 이야기를 음성으로 들려줘요.",
+                                    "사진을 보내면 ${state.grandparentName ?: "할머니"}가 그때 이야기를 음성으로 들려줘요.",
                                     fontSize = 14.sp, fontWeight = FontWeight.W600, color = InkSub, lineHeight = 21.sp
                                 )
                                 Spacer(Modifier.height(16.dp))
@@ -403,7 +322,7 @@ fun GrandchildMainScreen(navController: NavController) {
                     }
                 }
 
-                // 4. 우리 가족 추억 (가로 스크롤)
+                // 4. 우리 가족 추억
                 item {
                     Column {
                         Row(

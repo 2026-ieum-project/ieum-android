@@ -11,5 +11,6 @@ data class Message(
     companion object {
         const val TYPE_TEXT = "text"
         const val TYPE_VOICE = "voice"
+        const val TYPE_IMAGE = "image"
     }
 }

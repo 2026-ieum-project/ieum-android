@@ -31,114 +31,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
-fun GrandparentMainScreen(navController: NavController) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-    var groupId by remember { mutableStateOf<String?>(null) }
-    var userName by remember { mutableStateOf("") }
+fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // 가족 멤버 정보
-    var hasFamilyMembers by remember { mutableStateOf<Boolean?>(null) }
-    var childName by remember { mutableStateOf<String?>(null) }
-    var grandchildName by remember { mutableStateOf<String?>(null) }
-    var inviteCode by remember { mutableStateOf("") }
     var codeCopied by remember { mutableStateOf(false) }
-    var messageCount by remember { mutableIntStateOf(0) }
-    var userGender by remember { mutableStateOf("female") }
-
     val clipboardManager = LocalClipboardManager.current
-
-    LaunchedEffect(Unit) {
-        FirebaseDatabase.getInstance().reference.child("users").child(uid).get()
-            .addOnSuccessListener { snapshot ->
-                groupId = snapshot.child("groupId").getValue(String::class.java) ?: ""
-                userName = snapshot.child("name").getValue(String::class.java) ?: ""
-                userGender = snapshot.child("gender").getValue(String::class.java) ?: "female"
-            }
-    }
-
-    // 그룹 로드 후 가족 멤버 확인
-    LaunchedEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@LaunchedEffect
-
-        val db = FirebaseDatabase.getInstance().reference
-
-        db.child("groups").child(gid).child("inviteCode").get()
-            .addOnSuccessListener { snap ->
-                inviteCode = snap.getValue(String::class.java) ?: ""
-            }
-
-        db.child("groups").child(gid).child("members").get()
-            .addOnSuccessListener { membersSnap ->
-                var foundChildUid: String? = null
-                var foundGrandchildUid: String? = null
-
-                for (child in membersSnap.children) {
-                    val role = child.getValue(String::class.java)
-                    when (role) {
-                        "child" -> if (foundChildUid == null) foundChildUid = child.key
-                        "grandchild" -> if (foundGrandchildUid == null) foundGrandchildUid = child.key
-                    }
-                }
-
-                if (foundChildUid != null || foundGrandchildUid != null) {
-                    hasFamilyMembers = true
-                    foundChildUid?.let { cUid ->
-                        db.child("users").child(cUid).child("name").get()
-                            .addOnSuccessListener { nameSnap ->
-                                childName = nameSnap.getValue(String::class.java)
-                            }
-                    }
-                    foundGrandchildUid?.let { gcUid ->
-                        db.child("users").child(gcUid).child("name").get()
-                            .addOnSuccessListener { nameSnap ->
-                                grandchildName = nameSnap.getValue(String::class.java)
-                            }
-                    }
-                } else {
-                    hasFamilyMembers = false
-                }
-            }
-            .addOnFailureListener {
-                hasFamilyMembers = false
-            }
-    }
-
-    // 메시지 수 실시간 리스너
-    DisposableEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@DisposableEffect onDispose {}
-
-        val ref = FirebaseDatabase.getInstance().reference.child("messages").child(gid)
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                messageCount = snapshot.childrenCount.toInt()
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        ref.addValueEventListener(listener)
-        onDispose { ref.removeEventListener(listener) }
-    }
 
     val todayDate = remember {
         val sdf = SimpleDateFormat("M월 d일 EEEE", Locale.KOREAN)
         sdf.format(Date()) + "이에요"
     }
 
-    val storyPrompt = remember(userGender, grandchildName, childName) {
-        getStoryPrompt(userGender, grandchildName, childName)
+    val storyPrompt = remember(state.userGender, state.grandchildName, state.childName) {
+        getStoryPrompt(state.userGender, state.grandchildName, state.childName)
     }
 
     Scaffold(
@@ -147,12 +59,11 @@ fun GrandparentMainScreen(navController: NavController) {
             ElderBottomBar(selectedTab) { selectedTab = it }
         }
     ) { padding ->
-        if (groupId == null) {
+        if (state.groupId == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("로딩 중...", color = Muted)
             }
-        } else if (groupId!!.isEmpty()) {
-            // 그룹 미가입 상태
+        } else if (state.groupId!!.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 contentAlignment = Alignment.Center
@@ -211,7 +122,7 @@ fun GrandparentMainScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(18.dp))
                         Text(
-                            "${userName.ifEmpty { "할머니" }},",
+                            "${state.userName.ifEmpty { "할머니" }},",
                             fontSize = 30.sp, fontWeight = FontWeight.W800, color = Ink
                         )
                         Spacer(Modifier.height(4.dp))
@@ -221,7 +132,7 @@ fun GrandparentMainScreen(navController: NavController) {
 
                 // 2. 가족 멤버 상태에 따라 다른 카드
                 item {
-                    when (hasFamilyMembers) {
+                    when (state.hasFamilyMembers) {
                         null -> {
                             Box(
                                 modifier = Modifier
@@ -234,7 +145,6 @@ fun GrandparentMainScreen(navController: NavController) {
                             }
                         }
                         false -> {
-                            // 가족 멤버가 없는 경우: 초대 카드
                             Surface(
                                 modifier = Modifier
                                     .padding(horizontal = 18.dp)
@@ -283,7 +193,7 @@ fun GrandparentMainScreen(navController: NavController) {
                                             Text("초대 코드", fontSize = 12.sp, fontWeight = FontWeight.W700, color = Muted)
                                             Spacer(Modifier.height(8.dp))
                                             Text(
-                                                inviteCode.ifEmpty { "------" },
+                                                state.inviteCode.ifEmpty { "------" },
                                                 fontSize = 32.sp, fontWeight = FontWeight.W800,
                                                 letterSpacing = 6.sp, color = Coral
                                             )
@@ -293,8 +203,8 @@ fun GrandparentMainScreen(navController: NavController) {
 
                                     Button(
                                         onClick = {
-                                            if (inviteCode.isNotEmpty()) {
-                                                clipboardManager.setText(AnnotatedString(inviteCode))
+                                            if (state.inviteCode.isNotEmpty()) {
+                                                clipboardManager.setText(AnnotatedString(state.inviteCode))
                                                 codeCopied = true
                                             }
                                         },
@@ -318,7 +228,6 @@ fun GrandparentMainScreen(navController: NavController) {
                             }
                         }
                         true -> {
-                            // 가족이 있는 경우: 오늘의 이야기 히어로
                             SectionCard(
                                 modifier = Modifier.padding(horizontal = 18.dp),
                                 shadowColor = Coral.copy(alpha = 0.10f)
@@ -347,8 +256,8 @@ fun GrandparentMainScreen(navController: NavController) {
                                     )
                                     Spacer(Modifier.height(14.dp))
                                     Text(
-                                        if (grandchildName != null) "${grandchildName}이(가) 기다리고 있어요"
-                                        else if (childName != null) "${childName}이(가) 기다리고 있어요"
+                                        if (state.grandchildName != null) "${state.grandchildName}이(가) 기다리고 있어요"
+                                        else if (state.childName != null) "${state.childName}이(가) 기다리고 있어요"
                                         else "가족이 기다리고 있어요",
                                         modifier = Modifier.fillMaxWidth(),
                                         textAlign = TextAlign.Center,
@@ -360,8 +269,8 @@ fun GrandparentMainScreen(navController: NavController) {
                     }
                 }
 
-                // 3. 가족이 보낸 사진 (가족 있을 때만)
-                if (hasFamilyMembers == true) {
+                // 3. 가족이 보낸 사진
+                if (state.hasFamilyMembers == true) {
                     item {
                         SectionCard(modifier = Modifier.padding(horizontal = 18.dp)) {
                             Column(modifier = Modifier.padding(20.dp)) {
@@ -380,8 +289,8 @@ fun GrandparentMainScreen(navController: NavController) {
                                     contentAlignment = Alignment.BottomStart
                                 ) {
                                     Text(
-                                        if (grandchildName != null) "${grandchildName}이(가) 보냈어요"
-                                        else if (childName != null) "${childName}이(가) 보냈어요"
+                                        if (state.grandchildName != null) "${state.grandchildName}이(가) 보냈어요"
+                                        else if (state.childName != null) "${state.childName}이(가) 보냈어요"
                                         else "가족이 보냈어요",
                                         modifier = Modifier.padding(14.dp, 12.dp),
                                         fontSize = 15.sp, fontWeight = FontWeight.W700, color = Color.White
@@ -429,7 +338,7 @@ fun GrandparentMainScreen(navController: NavController) {
                                 Text("가족 대화", fontSize = 20.sp, fontWeight = FontWeight.W800, color = Ink)
                                 Spacer(Modifier.height(3.dp))
                                 Text(
-                                    if (messageCount > 0) "메시지 ${messageCount}개" else "대화하기",
+                                    if (state.messageCount > 0) "메시지 ${state.messageCount}개" else "대화하기",
                                     fontSize = 16.sp, fontWeight = FontWeight.W700, color = Coral
                                 )
                             }
@@ -556,7 +465,6 @@ fun NotificationBell(size: Int = 44) {
             Icons.Outlined.Notifications, "알림",
             tint = InkSub, modifier = Modifier.size((size * 0.5).dp)
         )
-        // 빨간 점
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -630,7 +538,6 @@ private fun getStoryPrompt(
     val cName = childName ?: "자녀"
     val isFemale = gender == "female"
 
-    // 시간대별 멘트 풀 (여성/남성 공통 + 성별 전용)
     val morningPrompts = listOf(
         "오늘 아침은\n뭘 드셨어요?",
         "어젯밤에\n잘 주무셨어요?",
@@ -712,6 +619,5 @@ private fun getStoryPrompt(
         else -> nightPrompts
     }
 
-    // 매일 다른 멘트가 나오도록 dayOfYear 기반 인덱스 선택
     return prompts[dayOfYear % prompts.size]
 }

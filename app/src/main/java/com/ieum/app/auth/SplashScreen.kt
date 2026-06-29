@@ -11,25 +11,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 
 @Composable
-fun SplashScreen(navController: NavController) {
-    LaunchedEffect(Unit) {
-        val user = FirebaseAuth.getInstance().currentUser
-        if (user == null) {
-            navController.navigate(NavRoute.Login.route) {
-                popUpTo(0) { inclusive = true }
+fun SplashScreen(navController: NavController, viewModel: SplashViewModel = viewModel()) {
+    val destination by viewModel.destination.collectAsState()
+
+    LaunchedEffect(destination) {
+        val route = when (destination) {
+            SplashDestination.Loading -> return@LaunchedEffect
+            SplashDestination.Login -> NavRoute.Login.route
+            is SplashDestination.RoleMain -> {
+                when ((destination as SplashDestination.RoleMain).role) {
+                    "grandparent" -> NavRoute.GrandparentMain.route
+                    "child" -> NavRoute.ChildMain.route
+                    "grandchild" -> NavRoute.GrandchildMain.route
+                    else -> NavRoute.Login.route
+                }
             }
-        } else {
-            navigateAfterAuth(user.uid, navController)
+        }
+        navController.navigate(route) {
+            popUpTo(0) { inclusive = true }
         }
     }
 
@@ -40,10 +50,7 @@ fun SplashScreen(navController: NavController) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "💌",
-            fontSize = 64.sp
-        )
+        Text(text = "\uD83D\uDC8C", fontSize = 64.sp)
         Spacer(Modifier.height(16.dp))
         Text(
             text = "이음",
@@ -60,25 +67,9 @@ fun SplashScreen(navController: NavController) {
     }
 }
 
-fun navigateAfterAuth(uid: String, navController: NavController) {
-    FirebaseDatabase.getInstance().reference
-        .child("users").child(uid).child("role")
-        .get()
-        .addOnSuccessListener { snapshot ->
-            val role = snapshot.getValue(String::class.java) ?: ""
-            val destination = when (role) {
-                "grandparent" -> NavRoute.GrandparentMain.route
-                "child" -> NavRoute.ChildMain.route
-                "grandchild" -> NavRoute.GrandchildMain.route
-                else -> NavRoute.Login.route
-            }
-            navController.navigate(destination) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
-        .addOnFailureListener {
-            navController.navigate(NavRoute.Login.route) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
+fun roleToRoute(role: String): String = when (role) {
+    "grandparent" -> NavRoute.GrandparentMain.route
+    "child" -> NavRoute.ChildMain.route
+    "grandchild" -> NavRoute.GrandchildMain.route
+    else -> NavRoute.Login.route
 }

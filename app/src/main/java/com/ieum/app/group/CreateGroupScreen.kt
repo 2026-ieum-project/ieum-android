@@ -2,7 +2,6 @@ package com.ieum.app.group
 
 import com.ieum.app.NavRoute
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -18,27 +17,20 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 
 @Composable
-fun CreateGroupScreen(navController: NavController) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-
-    var inviteCode by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
+fun CreateGroupScreen(navController: NavController, viewModel: CreateGroupViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
 
     Box(
         modifier = Modifier
@@ -50,7 +42,7 @@ fun CreateGroupScreen(navController: NavController) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("🏠", fontSize = 48.sp)
+            Text("\uD83C\uDFE0", fontSize = 48.sp)
             Spacer(Modifier.height(12.dp))
             Text(
                 "가족 그룹 만들기",
@@ -60,7 +52,7 @@ fun CreateGroupScreen(navController: NavController) {
             )
             Spacer(Modifier.height(4.dp))
 
-            if (inviteCode.isEmpty()) {
+            if (!state.isCreated) {
                 Text(
                     "그룹을 만들면 고유한 초대 코드가 발급됩니다",
                     style = MaterialTheme.typography.bodySmall,
@@ -69,16 +61,8 @@ fun CreateGroupScreen(navController: NavController) {
                 )
                 Spacer(Modifier.height(32.dp))
                 Button(
-                    onClick = {
-                        isLoading = true
-                        errorMessage = ""
-                        createGroup(uid) { code, error ->
-                            isLoading = false
-                            if (code != null) inviteCode = code
-                            else errorMessage = error ?: "그룹 생성 실패"
-                        }
-                    },
-                    enabled = !isLoading,
+                    onClick = viewModel::createGroup,
+                    enabled = !state.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -86,7 +70,7 @@ fun CreateGroupScreen(navController: NavController) {
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        if (isLoading) "생성 중..." else "그룹 만들기",
+                        if (state.isLoading) "생성 중..." else "그룹 만들기",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
@@ -115,7 +99,7 @@ fun CreateGroupScreen(navController: NavController) {
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            inviteCode,
+                            state.inviteCode,
                             fontSize = 40.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 8.sp,
@@ -144,46 +128,14 @@ fun CreateGroupScreen(navController: NavController) {
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("💬  채팅 시작하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("\uD83D\uDCAC  채팅 시작하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
-            if (errorMessage.isNotEmpty()) {
+            if (state.errorMessage.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
-}
-
-private fun createGroup(uid: String, onResult: (code: String?, error: String?) -> Unit) {
-    val code = generateInviteCode()
-    val groupsRef = FirebaseDatabase.getInstance().reference.child("groups")
-    val newGroupRef = groupsRef.push()
-    val groupId = newGroupRef.key ?: run { onResult(null, "그룹 ID 생성 실패"); return }
-
-    val groupData = mapOf(
-        "inviteCode" to code,
-        "createdBy" to uid,
-        "members" to mapOf(uid to "child")
-    )
-
-    newGroupRef.setValue(groupData)
-        .addOnSuccessListener {
-            val db = FirebaseDatabase.getInstance().reference
-            db.child("inviteCodes").child(code).setValue(groupId)
-                .addOnSuccessListener {
-                    db.child("users").child(uid).child("groupId")
-                        .setValue(groupId)
-                        .addOnSuccessListener { onResult(code, null) }
-                        .addOnFailureListener { e -> onResult(null, e.message) }
-                }
-                .addOnFailureListener { e -> onResult(null, e.message) }
-        }
-        .addOnFailureListener { e -> onResult(null, e.message) }
-}
-
-private fun generateInviteCode(): String {
-    val chars = ('A'..'Z') + ('0'..'9')
-    return (1..6).map { chars.random() }.joinToString("")
 }
