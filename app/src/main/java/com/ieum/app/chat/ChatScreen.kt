@@ -11,6 +11,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,29 +23,35 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,22 +59,26 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil3.compose.AsyncImage
 import com.ieum.app.ui.theme.BubbleReceived
 import com.ieum.app.ui.theme.BubbleReceivedText
 import com.ieum.app.ui.theme.BubbleSent
 import com.ieum.app.ui.theme.BubbleSentText
-import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,12 +96,15 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
     val audioFile = remember { mutableStateOf<File?>(null) }
     val recordingStartTime = remember { mutableStateOf(0L) }
 
+    val scope = rememberCoroutineScope()
+    var showPhotoSheet by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* 권한 결과는 버튼 클릭 시 재확인 */ }
 
-    // 사진 선택 런처
-    val photoPickerLauncher = rememberLauncherForActivityResult(
+    // 갤러리 선택 런처
+    val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -98,6 +112,46 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
         val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
         val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
         viewModel.sendImageMessage(bytes, mimeType)
+    }
+
+    // 카메라 촬영 런처
+    val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (!success) return@rememberLauncherForActivityResult
+        val uri = cameraImageUri.value ?: return@rememberLauncherForActivityResult
+        val contentResolver = context.contentResolver
+        val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
+        viewModel.sendImageMessage(bytes, mimeType)
+    }
+
+    // 카메라 권한 런처
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val file = File(context.cacheDir, "photo_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraImageUri.value = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "카메라 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 갤러리 권한 런처 (Android 12 이하)
+    val galleryPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            galleryLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        } else {
+            Toast.makeText(context, "갤러리 접근 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // 화면 나갈 때 녹음 정리
@@ -316,14 +370,8 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                         )
                     }
 
-                    // 사진 선택 버튼
-                    IconButton(
-                        onClick = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        }
-                    ) {
+                    // 사진 버튼 → 바텀시트 열기
+                    IconButton(onClick = { showPhotoSheet = true }) {
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "사진 보내기",
@@ -346,6 +394,107 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
 
                     IconButton(onClick = viewModel::sendTextMessage) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "전송", tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+
+    // 사진 선택 바텀시트
+    if (showPhotoSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPhotoSheet = false },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    "사진 보내기",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
+
+                // 카메라로 촬영
+                Surface(
+                    onClick = {
+                        showPhotoSheet = false
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            val file = File(context.cacheDir, "photo_${System.currentTimeMillis()}.jpg")
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                            cameraImageUri.value = uri
+                            cameraLauncher.launch(uri)
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text("카메라로 촬영", fontSize = 16.sp, fontWeight = FontWeight.W600)
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // 갤러리에서 선택
+                Surface(
+                    onClick = {
+                        showPhotoSheet = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            // Android 13+: Photo Picker는 권한 불필요
+                            galleryLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        } else {
+                            // Android 12 이하: READ_EXTERNAL_STORAGE 필요
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+                                == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                galleryLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            } else {
+                                galleryPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.PhotoLibrary,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text("갤러리에서 선택", fontSize = 16.sp, fontWeight = FontWeight.W600)
                     }
                 }
             }
