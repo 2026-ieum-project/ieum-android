@@ -34,3 +34,7 @@ apikeys.properties
 .cxx/
 *.hprof
 .navigation/
+
+# Cloud Functions
+functions/node_modules/
+functions/.env
