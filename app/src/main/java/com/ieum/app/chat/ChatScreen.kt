@@ -74,6 +74,8 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import com.ieum.app.api.FeatureApiClient
+import com.ieum.app.keystroke.KeystrokeAnalyzer
 import com.ieum.app.ui.theme.BubbleReceived
 import com.ieum.app.ui.theme.BubbleReceivedText
 import com.ieum.app.ui.theme.BubbleSent
@@ -92,6 +94,7 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
 
     var isRecording by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val keystrokeAnalyzer = remember { KeystrokeAnalyzer() }
     val recorder = remember { mutableStateOf<MediaRecorder?>(null) }
     val audioFile = remember { mutableStateOf<File?>(null) }
     val recordingStartTime = remember { mutableStateOf(0L) }
@@ -381,7 +384,10 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
 
                     OutlinedTextField(
                         value = state.textInput,
-                        onValueChange = viewModel::onTextInputChange,
+                        onValueChange = {
+                            keystrokeAnalyzer.onTextChanged(it)
+                            viewModel.onTextInputChange(it)
+                        },
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                         placeholder = { Text("메시지 입력", color = MaterialTheme.colorScheme.outline) },
                         maxLines = 3,
@@ -392,7 +398,14 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                         )
                     )
 
-                    IconButton(onClick = viewModel::sendTextMessage) {
+                    IconButton(onClick = {
+                        if (keystrokeAnalyzer.hasData()) {
+                            val f = keystrokeAnalyzer.getFeatures()
+                            scope.launch { FeatureApiClient.sendKeystroke(state.uid, f) }
+                            keystrokeAnalyzer.reset()
+                        }
+                        viewModel.sendTextMessage()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "전송", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -505,6 +518,7 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
 @Composable
 private fun MessageBubble(message: Message, isMine: Boolean) {
     var isPlaying by remember { mutableStateOf(false) }
+    val player = remember { mutableStateOf<MediaPlayer?>(null) }
     val bubbleColor = if (isMine) BubbleSent else BubbleReceived
     val textColor = if (isMine) BubbleSentText else BubbleReceivedText
 
@@ -550,22 +564,25 @@ private fun MessageBubble(message: Message, isMine: Boolean) {
                                     if (isPlaying) return@IconButton
                                     isPlaying = true
                                     try {
-                                        MediaPlayer().apply {
-                                            setDataSource(message.content)
-                                            setOnErrorListener { mp, _, _ ->
-                                                isPlaying = false
-                                                mp.release()
-                                                true
-                                            }
-                                            setOnPreparedListener { it.start() }
-                                            setOnCompletionListener {
-                                                isPlaying = false
-                                                it.release()
-                                            }
-                                            prepareAsync()
+                                        val mp = MediaPlayer()
+                                        player.value = mp
+                                        mp.setDataSource(message.content)
+                                        mp.setOnErrorListener { p, _, _ ->
+                                            isPlaying = false
+                                            p.release()
+                                            player.value = null
+                                            true
                                         }
+                                        mp.setOnPreparedListener { it.start() }
+                                        mp.setOnCompletionListener {
+                                            isPlaying = false
+                                            it.release()
+                                            player.value = null
+                                        }
+                                        mp.prepareAsync()
                                     } catch (e: Exception) {
                                         isPlaying = false
+                                        player.value = null
                                     }
                                 }
                             ) {

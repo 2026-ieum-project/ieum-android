@@ -31,6 +31,7 @@ android {
         buildConfigField("String", "ORACLE_BUCKET_NAME", "\"${localProp("ORACLE_BUCKET_NAME")}\"")
         buildConfigField("String", "ORACLE_REGION", "\"${localProp("ORACLE_REGION")}\"")
         buildConfigField("String", "ORACLE_PAR_URL", "\"${localProp("ORACLE_PAR_URL")}\"")
+        buildConfigField("String", "IEUM_SERVER_URL", "\"${localProp("IEUM_SERVER_URL")}\"")
     }
 
     buildTypes {

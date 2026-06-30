@@ -9,6 +9,6 @@ object OracleObjectStorageConfig {
     val PAR_URL: String = BuildConfig.ORACLE_PAR_URL
 
     fun getObjectUrl(objectName: String): String {
-        return "https://objectstorage.$REGION.oraclecloud.com/n/$NAMESPACE/b/$BUCKET_NAME/o/$objectName"
+        return "${PAR_URL.trimEnd('/')}/$objectName"
     }
 }
