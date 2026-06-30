@@ -25,28 +25,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
 
 @Composable
-fun ChildMainScreen(navController: NavController) {
-    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-    var groupId by remember { mutableStateOf<String?>(null) }
-    var userName by remember { mutableStateOf("") }
+fun ChildMainScreen(navController: NavController, viewModel: ChildViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // 조부모 정보
-    var grandparentName by remember { mutableStateOf<String?>(null) }
-    var hasGrandparent by remember { mutableStateOf<Boolean?>(null) }
-    var inviteCode by remember { mutableStateOf("") }
     var codeCopied by remember { mutableStateOf(false) }
-
-    // 메시지 수
-    var messageCount by remember { mutableIntStateOf(0) }
+    val clipboardManager = LocalClipboardManager.current
 
     // 더미 상태
     val vitalityScore = 82
@@ -54,89 +41,17 @@ fun ChildMainScreen(navController: NavController) {
     val isAlert = false
     val weeklyBars = listOf(0.60f, 0.48f, 0.72f, 0.64f, 0.80f, 0.76f, 1f)
 
-    val clipboardManager = LocalClipboardManager.current
-
-    LaunchedEffect(Unit) {
-        val db = FirebaseDatabase.getInstance().reference
-        db.child("users").child(uid).get()
-            .addOnSuccessListener { snapshot ->
-                groupId = snapshot.child("groupId").getValue(String::class.java) ?: ""
-                userName = snapshot.child("name").getValue(String::class.java) ?: ""
-            }
-    }
-
-    // 그룹이 로드되면 조부모 멤버 확인
-    LaunchedEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@LaunchedEffect
-
-        val db = FirebaseDatabase.getInstance().reference
-
-        // 초대 코드 가져오기
-        db.child("groups").child(gid).child("inviteCode").get()
-            .addOnSuccessListener { snap ->
-                inviteCode = snap.getValue(String::class.java) ?: ""
-            }
-
-        // 멤버에서 조부모 찾기
-        db.child("groups").child(gid).child("members").get()
-            .addOnSuccessListener { membersSnap ->
-                var foundGrandparentUid: String? = null
-                for (child in membersSnap.children) {
-                    val role = child.getValue(String::class.java)
-                    if (role == "grandparent") {
-                        foundGrandparentUid = child.key
-                        break
-                    }
-                }
-
-                if (foundGrandparentUid != null) {
-                    // 조부모 이름 가져오기
-                    db.child("users").child(foundGrandparentUid).child("name").get()
-                        .addOnSuccessListener { nameSnap ->
-                            grandparentName = nameSnap.getValue(String::class.java) ?: "조부모"
-                            hasGrandparent = true
-                        }
-                        .addOnFailureListener {
-                            grandparentName = "조부모"
-                            hasGrandparent = true
-                        }
-                } else {
-                    hasGrandparent = false
-                }
-            }
-            .addOnFailureListener {
-                hasGrandparent = false
-            }
-    }
-
-    // 메시지 수 실시간 리스너
-    DisposableEffect(groupId) {
-        val gid = groupId
-        if (gid.isNullOrEmpty()) return@DisposableEffect onDispose {}
-
-        val ref = FirebaseDatabase.getInstance().reference.child("messages").child(gid)
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                messageCount = snapshot.childrenCount.toInt()
-            }
-            override fun onCancelled(error: DatabaseError) {}
-        }
-        ref.addValueEventListener(listener)
-        onDispose { ref.removeEventListener(listener) }
-    }
-
     Scaffold(
         containerColor = Paper,
         bottomBar = {
             ChildBottomBar(selectedTab) { selectedTab = it }
         }
     ) { padding ->
-        if (groupId == null) {
+        if (state.groupId == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("로딩 중...", color = Muted)
             }
-        } else if (groupId!!.isEmpty()) {
+        } else if (state.groupId!!.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 contentAlignment = Alignment.Center
@@ -192,7 +107,7 @@ fun ChildMainScreen(navController: NavController) {
                             Text("우리 가족", fontSize = 14.sp, fontWeight = FontWeight.W700, color = Muted)
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                "안녕하세요, ${userName.ifEmpty { "사용자" }}님",
+                                "안녕하세요, ${state.userName.ifEmpty { "사용자" }}님",
                                 fontSize = 22.sp, fontWeight = FontWeight.W800, color = Ink
                             )
                         }
@@ -202,9 +117,8 @@ fun ChildMainScreen(navController: NavController) {
 
                 // 2. 조부모 상태에 따라 다른 카드 표시
                 item {
-                    when (hasGrandparent) {
+                    when (state.hasGrandparent) {
                         null -> {
-                            // 로딩 중
                             Box(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
@@ -216,7 +130,6 @@ fun ChildMainScreen(navController: NavController) {
                             }
                         }
                         true -> {
-                            // 조부모가 있는 경우: 두뇌 활력 리포트
                             Surface(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
@@ -236,7 +149,7 @@ fun ChildMainScreen(navController: NavController) {
                                             Box(Modifier.size(9.dp).background(Sage, CircleShape))
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                "${grandparentName ?: "조부모"} 어머니 · 두뇌 활력",
+                                                "${state.grandparentName ?: "조부모"} 어머니 · 두뇌 활력",
                                                 fontSize = 15.sp, fontWeight = FontWeight.W800, color = Ink
                                             )
                                         }
@@ -314,7 +227,6 @@ fun ChildMainScreen(navController: NavController) {
                             }
                         }
                         false -> {
-                            // 조부모가 없는 경우: 초대 카드
                             Surface(
                                 modifier = Modifier
                                     .padding(horizontal = 16.dp)
@@ -350,7 +262,6 @@ fun ChildMainScreen(navController: NavController) {
                                     )
                                     Spacer(Modifier.height(20.dp))
 
-                                    // 초대 코드 표시
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(16.dp),
@@ -364,7 +275,7 @@ fun ChildMainScreen(navController: NavController) {
                                             Text("초대 코드", fontSize = 12.sp, fontWeight = FontWeight.W700, color = Muted)
                                             Spacer(Modifier.height(8.dp))
                                             Text(
-                                                inviteCode.ifEmpty { "------" },
+                                                state.inviteCode.ifEmpty { "------" },
                                                 fontSize = 32.sp, fontWeight = FontWeight.W800,
                                                 letterSpacing = 6.sp, color = Coral
                                             )
@@ -372,11 +283,10 @@ fun ChildMainScreen(navController: NavController) {
                                     }
                                     Spacer(Modifier.height(16.dp))
 
-                                    // 복사 버튼
                                     Button(
                                         onClick = {
-                                            if (inviteCode.isNotEmpty()) {
-                                                clipboardManager.setText(AnnotatedString(inviteCode))
+                                            if (state.inviteCode.isNotEmpty()) {
+                                                clipboardManager.setText(AnnotatedString(state.inviteCode))
                                                 codeCopied = true
                                             }
                                         },
@@ -403,7 +313,7 @@ fun ChildMainScreen(navController: NavController) {
                 }
 
                 // 3. 오늘의 활동 (조부모 있을 때만 표시)
-                if (hasGrandparent == true) {
+                if (state.hasGrandparent == true) {
                     item {
                         SectionCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Column(modifier = Modifier.padding(18.dp, 18.dp, 20.dp, 18.dp)) {
@@ -440,7 +350,7 @@ fun ChildMainScreen(navController: NavController) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Avatar(
-                                if (hasGrandparent == true) (grandparentName?.first()?.toString() ?: "조") else userName.firstOrNull()?.toString() ?: "?",
+                                if (state.hasGrandparent == true) (state.grandparentName?.first()?.toString() ?: "조") else state.userName.firstOrNull()?.toString() ?: "?",
                                 48
                             )
                             Spacer(Modifier.width(14.dp))
@@ -450,19 +360,19 @@ fun ChildMainScreen(navController: NavController) {
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("가족 대화", fontSize = 16.sp, fontWeight = FontWeight.W800, color = Ink)
-                                    if (messageCount > 0) {
-                                        Text("${messageCount}개의 메시지", fontSize = 12.sp, fontWeight = FontWeight.W600, color = MutedSoft)
+                                    if (state.messageCount > 0) {
+                                        Text("${state.messageCount}개의 메시지", fontSize = 12.sp, fontWeight = FontWeight.W600, color = MutedSoft)
                                     }
                                 }
                                 Spacer(Modifier.height(3.dp))
                                 Text(
-                                    if (messageCount > 0) "대화방에 메시지가 있어요"
+                                    if (state.messageCount > 0) "대화방에 메시지가 있어요"
                                     else "가족 대화를 시작해보세요",
                                     fontSize = 14.sp, fontWeight = FontWeight.W600, color = InkSub,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            if (messageCount > 0) {
+                            if (state.messageCount > 0) {
                                 Spacer(Modifier.width(10.dp))
                                 Box(
                                     modifier = Modifier
@@ -471,7 +381,7 @@ fun ChildMainScreen(navController: NavController) {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        if (messageCount > 99) "99+" else "$messageCount",
+                                        if (state.messageCount > 99) "99+" else "${state.messageCount}",
                                         fontSize = 11.sp, fontWeight = FontWeight.W800, color = Color.White
                                     )
                                 }

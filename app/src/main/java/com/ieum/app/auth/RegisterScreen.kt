@@ -1,6 +1,5 @@
 package com.ieum.app.auth
 
-import com.ieum.app.NavRoute
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,39 +24,38 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
 
 @Composable
-fun RegisterScreen(navController: NavController) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("grandparent") }
-    var selectedGender by remember { mutableStateOf("female") }
-    var errorMessage by remember { mutableStateOf("") }
+fun RegisterScreen(navController: NavController, viewModel: RegisterViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
 
     val roles = listOf(
-        "grandparent" to "👴 조부모",
-        "child" to "🧑 자녀",
-        "grandchild" to "🧒 손자녀"
+        "grandparent" to "\uD83D\uDC74 조부모",
+        "child" to "\uD83E\uDDD1 자녀",
+        "grandchild" to "\uD83E\uDDD2 손자녀"
     )
+    val genders = listOf("female" to "여성", "male" to "남성")
 
-    val genders = listOf(
-        "female" to "여성",
-        "male" to "남성"
-    )
+    LaunchedEffect(state.navigateToRole) {
+        state.navigateToRole?.let { role ->
+            val route = roleToRoute(role)
+            navController.navigate(route) {
+                popUpTo(0) { inclusive = true }
+            }
+            viewModel.onNavigated()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -68,7 +66,7 @@ fun RegisterScreen(navController: NavController) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("💌", fontSize = 40.sp)
+        Text("\uD83D\uDC8C", fontSize = 40.sp)
         Spacer(Modifier.height(8.dp))
         Text(
             "회원가입",
@@ -84,8 +82,8 @@ fun RegisterScreen(navController: NavController) {
         Spacer(Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
+            value = state.name,
+            onValueChange = viewModel::onNameChange,
             label = { Text("이름") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -96,8 +94,8 @@ fun RegisterScreen(navController: NavController) {
         )
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
+            value = state.email,
+            onValueChange = viewModel::onEmailChange,
             label = { Text("이메일") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -108,8 +106,8 @@ fun RegisterScreen(navController: NavController) {
         )
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = state.password,
+            onValueChange = viewModel::onPasswordChange,
             label = { Text("비밀번호") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -140,8 +138,8 @@ fun RegisterScreen(navController: NavController) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         RadioButton(
-                            selected = selectedRole == value,
-                            onClick = { selectedRole = value },
+                            selected = state.selectedRole == value,
+                            onClick = { viewModel.onRoleChange(value) },
                             colors = RadioButtonDefaults.colors(
                                 selectedColor = MaterialTheme.colorScheme.primary
                             )
@@ -178,8 +176,8 @@ fun RegisterScreen(navController: NavController) {
                             modifier = Modifier.weight(1f)
                         ) {
                             RadioButton(
-                                selected = selectedGender == value,
-                                onClick = { selectedGender = value },
+                                selected = state.selectedGender == value,
+                                onClick = { viewModel.onGenderChange(value) },
                                 colors = RadioButtonDefaults.colors(
                                     selectedColor = MaterialTheme.colorScheme.primary
                                 )
@@ -195,46 +193,22 @@ fun RegisterScreen(navController: NavController) {
             }
         }
 
-        if (errorMessage.isNotEmpty()) {
+        if (state.errorMessage.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
         Spacer(Modifier.height(20.dp))
 
         Button(
-            onClick = {
-                errorMessage = ""
-                FirebaseAuth.getInstance()
-                    .createUserWithEmailAndPassword(email.trim(), password)
-                    .addOnSuccessListener { result ->
-                        val uid = result.user?.uid ?: return@addOnSuccessListener
-                        val userData = mapOf(
-                            "name" to name,
-                            "role" to selectedRole,
-                            "gender" to selectedGender,
-                            "groupId" to ""
-                        )
-                        FirebaseDatabase.getInstance().reference
-                            .child("users").child(uid)
-                            .setValue(userData)
-                            .addOnSuccessListener {
-                                navigateAfterAuth(uid, navController)
-                            }
-                            .addOnFailureListener { e ->
-                                errorMessage = e.message ?: "사용자 정보 저장 실패"
-                            }
-                    }
-                    .addOnFailureListener { e ->
-                        errorMessage = e.message ?: "회원가입 실패"
-                    }
-            },
+            onClick = viewModel::register,
+            enabled = !state.isLoading,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
-            Text("가입하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (state.isLoading) "가입 중..." else "가입하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = { navController.popBackStack() }) {

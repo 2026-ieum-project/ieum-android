@@ -18,24 +18,31 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun LoginScreen(navController: NavController) {
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf("") }
+fun LoginScreen(navController: NavController, viewModel: LoginViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(state.navigateToRole) {
+        state.navigateToRole?.let { role ->
+            val route = roleToRoute(role)
+            navController.navigate(route) {
+                popUpTo(0) { inclusive = true }
+            }
+            viewModel.onNavigated()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -45,7 +52,7 @@ fun LoginScreen(navController: NavController) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("💌", fontSize = 48.sp)
+        Text("\uD83D\uDC8C", fontSize = 48.sp)
         Spacer(Modifier.height(12.dp))
         Text(
             "이음",
@@ -61,8 +68,8 @@ fun LoginScreen(navController: NavController) {
         Spacer(Modifier.height(40.dp))
 
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
+            value = state.email,
+            onValueChange = viewModel::onEmailChange,
             label = { Text("이메일") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -73,8 +80,8 @@ fun LoginScreen(navController: NavController) {
         )
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
+            value = state.password,
+            onValueChange = viewModel::onPasswordChange,
             label = { Text("비밀번호") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -85,32 +92,22 @@ fun LoginScreen(navController: NavController) {
             )
         )
 
-        if (errorMessage.isNotEmpty()) {
+        if (state.errorMessage.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(state.errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
         Spacer(Modifier.height(24.dp))
 
         Button(
-            onClick = {
-                errorMessage = ""
-                FirebaseAuth.getInstance()
-                    .signInWithEmailAndPassword(email.trim(), password)
-                    .addOnSuccessListener { result ->
-                        val uid = result.user?.uid ?: return@addOnSuccessListener
-                        navigateAfterAuth(uid, navController)
-                    }
-                    .addOnFailureListener { e ->
-                        errorMessage = e.message ?: "로그인 실패"
-                    }
-            },
+            onClick = viewModel::login,
+            enabled = !state.isLoading,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
-            Text("로그인", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(if (state.isLoading) "로그인 중..." else "로그인", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         Spacer(Modifier.height(12.dp))
