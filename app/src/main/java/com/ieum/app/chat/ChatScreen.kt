@@ -518,6 +518,7 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
 @Composable
 private fun MessageBubble(message: Message, isMine: Boolean) {
     var isPlaying by remember { mutableStateOf(false) }
+    val player = remember { mutableStateOf<MediaPlayer?>(null) }
     val bubbleColor = if (isMine) BubbleSent else BubbleReceived
     val textColor = if (isMine) BubbleSentText else BubbleReceivedText
 
@@ -563,22 +564,25 @@ private fun MessageBubble(message: Message, isMine: Boolean) {
                                     if (isPlaying) return@IconButton
                                     isPlaying = true
                                     try {
-                                        MediaPlayer().apply {
-                                            setDataSource(message.content)
-                                            setOnErrorListener { mp, _, _ ->
-                                                isPlaying = false
-                                                mp.release()
-                                                true
-                                            }
-                                            setOnPreparedListener { it.start() }
-                                            setOnCompletionListener {
-                                                isPlaying = false
-                                                it.release()
-                                            }
-                                            prepareAsync()
+                                        val mp = MediaPlayer()
+                                        player.value = mp
+                                        mp.setDataSource(message.content)
+                                        mp.setOnErrorListener { p, _, _ ->
+                                            isPlaying = false
+                                            p.release()
+                                            player.value = null
+                                            true
                                         }
+                                        mp.setOnPreparedListener { it.start() }
+                                        mp.setOnCompletionListener {
+                                            isPlaying = false
+                                            it.release()
+                                            player.value = null
+                                        }
+                                        mp.prepareAsync()
                                     } catch (e: Exception) {
                                         isPlaying = false
+                                        player.value = null
                                     }
                                 }
                             ) {
