@@ -60,6 +60,8 @@ import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
 import com.ieum.app.NavRoute
+import com.ieum.app.api.FeatureApiClient
+import com.ieum.app.keystroke.KeystrokeAnalyzer
 import com.ieum.app.ui.theme.BubbleReceived
 import com.ieum.app.ui.theme.BubbleReceivedText
 import com.ieum.app.ui.theme.BubbleSent
@@ -85,6 +87,7 @@ fun ChatScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
 
     val listState = rememberLazyListState()
+    val keystrokeAnalyzer = remember { KeystrokeAnalyzer() }
     val recorder = remember { mutableStateOf<MediaRecorder?>(null) }
     val audioFile = remember { mutableStateOf<File?>(null) }
     val recordingStartTime = remember { mutableStateOf(0L) }
@@ -286,7 +289,10 @@ fun ChatScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = textInput,
-                        onValueChange = { textInput = it },
+                        onValueChange = {
+                            keystrokeAnalyzer.onTextChanged(it)
+                            textInput = it
+                        },
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                         placeholder = { Text("메시지 입력", color = MaterialTheme.colorScheme.outline) },
                         maxLines = 3,
@@ -302,7 +308,16 @@ fun ChatScreen(navController: NavController) {
                             if (textInput.isBlank() || groupId.isEmpty()) return@IconButton
                             val repo = MessageRepository(groupId)
                             repo.sendTextMessage(uid, userName, textInput.trim()) { success, _ ->
-                                if (success) textInput = ""
+                                if (success) {
+                                    textInput = ""
+                                    if (keystrokeAnalyzer.hasData()) {
+                                        val f = keystrokeAnalyzer.getFeatures()
+                                        scope.launch {
+                                            FeatureApiClient.sendKeystroke(uid, f)
+                                        }
+                                        keystrokeAnalyzer.reset()
+                                    }
+                                }
                             }
                         }
                     ) {
