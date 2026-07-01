@@ -361,12 +361,12 @@ fun ChildMainScreen(navController: NavController, viewModel: ChildViewModel = vi
                                 ) {
                                     Text("가족 대화", fontSize = 16.sp, fontWeight = FontWeight.W800, color = Ink)
                                     if (state.messageCount > 0) {
-                                        Text("${state.messageCount}개의 메시지", fontSize = 12.sp, fontWeight = FontWeight.W600, color = MutedSoft)
+                                        Text("새 메시지 ${state.messageCount}개", fontSize = 12.sp, fontWeight = FontWeight.W600, color = Coral)
                                     }
                                 }
                                 Spacer(Modifier.height(3.dp))
                                 Text(
-                                    if (state.messageCount > 0) "대화방에 메시지가 있어요"
+                                    if (state.messageCount > 0) "읽지 않은 메시지가 있어요"
                                     else "가족 대화를 시작해보세요",
                                     fontSize = 14.sp, fontWeight = FontWeight.W600, color = InkSub,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis

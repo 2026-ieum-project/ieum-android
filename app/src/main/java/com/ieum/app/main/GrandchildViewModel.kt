@@ -45,7 +45,7 @@ class GrandchildViewModel(
                 )
                 if (data.groupId.isNotEmpty()) {
                     loadGroupData(data.groupId)
-                    observeMessageCount(data.groupId)
+                    observeUnreadCount(data.groupId, uid)
                 }
             }.onFailure {
                 _uiState.value = _uiState.value.copy(groupId = "")
@@ -70,9 +70,9 @@ class GrandchildViewModel(
         }
     }
 
-    private fun observeMessageCount(groupId: String) {
+    private fun observeUnreadCount(groupId: String, uid: String) {
         viewModelScope.launch {
-            messageRepo.observeMessageCount(groupId).collect { count ->
+            messageRepo.observeUnreadCount(groupId, uid).collect { count ->
                 _uiState.value = _uiState.value.copy(messageCount = count)
             }
         }

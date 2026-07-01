@@ -87,19 +87,84 @@ class MessageRepository(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    fun observeMessageCount(groupId: String): Flow<Int> = callbackFlow {
-        val ref = db.reference.child("messages").child(groupId)
-        val listener = object : ValueEventListener {
+    /**
+     * 읽지 않은 메시지 수를 실시간 감지한다.
+     * 상대방이 보낸 메시지 중, 내가 마지막으로 읽은 시점 이후의 메시지만 카운트한다.
+     */
+    fun observeUnreadCount(groupId: String, uid: String): Flow<Int> = callbackFlow {
+        val lastReadRef = db.reference.child("groups").child(groupId)
+            .child("lastRead").child(uid)
+        val messagesRef = db.reference.child("messages").child(groupId)
+
+        // lastRead 변경 시 다시 계산해야 하므로 두 리스너를 조합
+        var lastReadTimestamp = 0L
+
+        val lastReadListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                trySend(snapshot.childrenCount.toInt())
+                lastReadTimestamp = snapshot.getValue(Long::class.java) ?: 0L
+                // lastRead가 변경되면 메시지를 다시 세야 함 → 메시지 리스너가 트리거
+                // 직접 한 번 재계산
+                messagesRef.orderByChild("timestamp")
+                    .startAfter(lastReadTimestamp.toDouble())
+                    .get().addOnSuccessListener { snap ->
+                        val count = snap.children.count { child ->
+                            val senderId = child.child("senderId").getValue(String::class.java)
+                            senderId != null && senderId != uid
+                        }
+                        trySend(count)
+                    }
             }
 
             override fun onCancelled(error: DatabaseError) {
                 close(error.toException())
             }
         }
-        ref.addValueEventListener(listener)
-        awaitClose { ref.removeEventListener(listener) }
+
+        val messagesListener = object : ChildEventListener {
+            override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                val ts = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
+                val senderId = snapshot.child("senderId").getValue(String::class.java)
+                if (ts > lastReadTimestamp && senderId != null && senderId != uid) {
+                    // 새 메시지 추가 시 전체 재계산
+                    messagesRef.orderByChild("timestamp")
+                        .startAfter(lastReadTimestamp.toDouble())
+                        .get().addOnSuccessListener { snap ->
+                            val count = snap.children.count { child ->
+                                val sid = child.child("senderId").getValue(String::class.java)
+                                sid != null && sid != uid
+                            }
+                            trySend(count)
+                        }
+                }
+            }
+
+            override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onChildRemoved(snapshot: DataSnapshot) {}
+            override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
+        }
+
+        lastReadRef.addValueEventListener(lastReadListener)
+        messagesRef.addChildEventListener(messagesListener)
+
+        awaitClose {
+            lastReadRef.removeEventListener(lastReadListener)
+            messagesRef.removeEventListener(messagesListener)
+        }
+    }
+
+    /**
+     * 채팅 화면 진입 시 현재 시각을 lastRead로 기록하여 읽음 처리한다.
+     */
+    suspend fun markAsRead(groupId: String, uid: String) {
+        try {
+            db.reference.child("groups").child(groupId)
+                .child("lastRead").child(uid)
+                .setValue(System.currentTimeMillis())
+                .await()
+        } catch (_: Exception) {}
     }
 
     suspend fun sendTextMessage(
