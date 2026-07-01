@@ -20,3 +20,21 @@ app/release/
 # 키스토어
 *.jks
 *.keystore
+keystore.properties
+
+# API 키 및 시크릿
+secrets.properties
+apikeys.properties
+*.env
+
+# Firebase 관리자 키
+/app/src/main/assets/firebase-adminsdk*.json
+
+# Local configuration and caches
+.cxx/
+*.hprof
+.navigation/
+
+# Cloud Functions
+functions/node_modules/
+functions/.env
