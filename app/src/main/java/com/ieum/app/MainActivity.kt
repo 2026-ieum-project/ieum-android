@@ -12,6 +12,7 @@ import com.ieum.app.auth.LoginScreen
 import com.ieum.app.auth.RegisterScreen
 import com.ieum.app.auth.SplashScreen
 import com.ieum.app.chat.ChatScreen
+import com.ieum.app.diary.DiaryScreen
 import com.ieum.app.group.CreateGroupScreen
 import com.ieum.app.group.JoinGroupScreen
 import com.ieum.app.main.ChildMainScreen
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
                 composable(NavRoute.CreateGroup.route) { CreateGroupScreen(navController) }
                 composable(NavRoute.JoinGroup.route) { JoinGroupScreen(navController) }
                 composable(NavRoute.Chat.route) { ChatScreen(navController) }
+                composable(NavRoute.Diary.route) { DiaryScreen(navController) }
             }
             }
         }

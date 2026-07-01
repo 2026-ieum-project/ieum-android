@@ -11,4 +11,5 @@ sealed class NavRoute(val route: String) {
     object CreateGroup : NavRoute("create_group")
     object JoinGroup : NavRoute("join_group")
     object Chat : NavRoute("chat")
+    object Diary : NavRoute("diary")
 }

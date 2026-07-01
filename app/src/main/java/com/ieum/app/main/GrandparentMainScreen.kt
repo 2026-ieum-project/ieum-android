@@ -343,7 +343,15 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                                 )
                             }
                         }
-                        SectionCard(modifier = Modifier.weight(1f)) {
+                        Surface(
+                            onClick = { navController.navigate(NavRoute.Diary.route) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .shadow(8.dp, RoundedCornerShape(26.dp), spotColor = Color.Black.copy(alpha = 0.06f)),
+                            shape = RoundedCornerShape(26.dp),
+                            color = Surface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                        ) {
                             Column(modifier = Modifier.padding(22.dp, 22.dp, 18.dp, 22.dp)) {
                                 Box(
                                     modifier = Modifier
@@ -352,14 +360,14 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        Icons.Outlined.Image, null,
+                                        Icons.Filled.Videocam, null,
                                         tint = Sage, modifier = Modifier.size(30.dp)
                                     )
                                 }
                                 Spacer(Modifier.height(14.dp))
-                                Text("오늘 일기", fontSize = 20.sp, fontWeight = FontWeight.W800, color = Ink)
+                                Text("영상 일기", fontSize = 20.sp, fontWeight = FontWeight.W800, color = Ink)
                                 Spacer(Modifier.height(3.dp))
-                                Text("사진 한 장", fontSize = 16.sp, fontWeight = FontWeight.W700, color = Muted)
+                                Text("오늘 기록", fontSize = 16.sp, fontWeight = FontWeight.W700, color = Muted)
                             }
                         }
                     }
