@@ -338,7 +338,7 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                                 Text("가족 대화", fontSize = 20.sp, fontWeight = FontWeight.W800, color = Ink)
                                 Spacer(Modifier.height(3.dp))
                                 Text(
-                                    if (state.messageCount > 0) "메시지 ${state.messageCount}개" else "대화하기",
+                                    if (state.messageCount > 0) "새 메시지 ${state.messageCount}개" else "대화하기",
                                     fontSize = 16.sp, fontWeight = FontWeight.W700, color = Coral
                                 )
                             }

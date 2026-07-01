@@ -47,6 +47,7 @@ class ChatViewModel(
                     userName = data.name
                 )
                 if (data.groupId.isNotEmpty()) {
+                    markAsRead(data.groupId, uid)
                     loadInitialMessages(data.groupId)
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false)
@@ -84,6 +85,8 @@ class ChatViewModel(
                     _uiState.value = _uiState.value.copy(
                         messages = current + message
                     )
+                    // 채팅 화면이 열려 있으므로 새 메시지도 즉시 읽음 처리
+                    markAsRead(groupId, _uiState.value.uid)
                 }
             }
         }
@@ -112,6 +115,12 @@ class ChatViewModel(
                 .onFailure {
                     _uiState.value = _uiState.value.copy(isLoadingOlder = false)
                 }
+        }
+    }
+
+    private fun markAsRead(groupId: String, uid: String) {
+        viewModelScope.launch {
+            messageRepo.markAsRead(groupId, uid)
         }
     }
 
