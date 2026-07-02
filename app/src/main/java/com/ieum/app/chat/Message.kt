@@ -1,5 +1,9 @@
 package com.ieum.app.chat
 
+import androidx.annotation.Keep
+
+// Firebase RTDB가 리플렉션으로 역직렬화하므로 R8 난독화에서 제외
+@Keep
 data class Message(
     val id: String = "",
     val senderId: String = "",

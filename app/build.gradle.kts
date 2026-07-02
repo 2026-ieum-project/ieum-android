@@ -36,8 +36,9 @@ android {
 
     buildTypes {
         release {
+            // R8 활성화: 코드 축소·난독화 (RTDB 리플렉션 모델은 @Keep으로 보호)
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
