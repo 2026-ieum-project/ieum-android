@@ -86,10 +86,15 @@ import java.util.Locale
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiaryScreen(navController: NavController, viewModel: DiaryViewModel = viewModel()) {
+fun DiaryScreen(
+    navController: NavController,
+    autoRecord: Boolean = false,
+    viewModel: DiaryViewModel = viewModel()
+) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
-    var showVideoSheet by remember { mutableStateOf(false) }
+    // autoRecord로 진입하면 촬영 선택 시트를 바로 열어줌
+    var showVideoSheet by remember { mutableStateOf(autoRecord) }
     var playingDiary by remember { mutableStateOf<Diary?>(null) }
 
     // 업로드 성공 토스트

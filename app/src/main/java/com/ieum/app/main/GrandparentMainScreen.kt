@@ -88,7 +88,12 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                 }
             }
         } else when (selectedTab) {
-            1 -> Box(Modifier.padding(padding)) { StoryTab() }
+            1 -> {
+                LaunchedEffect(Unit) {
+                    navController.navigate(NavRoute.Diary.path(autoRecord = true))
+                    selectedTab = 0
+                }
+            }
             2 -> {
                 LaunchedEffect(Unit) {
                     navController.navigate(NavRoute.Chat.route)
@@ -344,7 +349,7 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                             }
                         }
                         Surface(
-                            onClick = { navController.navigate(NavRoute.Diary.route) },
+                            onClick = { navController.navigate(NavRoute.Diary.path()) },
                             modifier = Modifier
                                 .weight(1f)
                                 .shadow(8.dp, RoundedCornerShape(26.dp), spotColor = Color.Black.copy(alpha = 0.06f)),
@@ -508,7 +513,7 @@ private fun ElderBottomBar(selectedTab: Int, onSelect: (Int) -> Unit) {
     ) {
         val items = listOf(
             "홈" to Icons.Outlined.Home,
-            "이야기" to Icons.Default.Mic,
+            "영상일기" to Icons.Default.Videocam,
             "가족 대화" to Icons.Outlined.ChatBubbleOutline,
             "사진" to Icons.Outlined.Image,
             "나" to Icons.Outlined.Person

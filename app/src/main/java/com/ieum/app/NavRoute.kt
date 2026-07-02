@@ -11,5 +11,8 @@ sealed class NavRoute(val route: String) {
     object CreateGroup : NavRoute("create_group")
     object JoinGroup : NavRoute("join_group")
     object Chat : NavRoute("chat")
-    object Diary : NavRoute("diary")
+    object Diary : NavRoute("diary?autoRecord={autoRecord}") {
+        const val ARG_AUTO_RECORD = "autoRecord"
+        fun path(autoRecord: Boolean = false) = "diary?autoRecord=$autoRecord"
+    }
 }
