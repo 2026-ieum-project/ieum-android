@@ -219,6 +219,42 @@ class MessageRepository(
         Result.failure(e)
     }
 
+    suspend fun sendVideoMessage(
+        groupId: String,
+        senderId: String,
+        senderName: String,
+        videoBytes: ByteArray,
+        mimeType: String = "video/mp4"
+    ): Result<Unit> = try {
+        val ref = db.reference.child("messages").child(groupId).push()
+        val messageId = ref.key ?: throw IllegalStateException("메시지 ID 생성 실패")
+        val extension = when (mimeType) {
+            "video/webm" -> "webm"
+            "video/3gpp" -> "3gp"
+            else -> "mp4"
+        }
+        val objectName = "videos/$groupId/$messageId.$extension"
+
+        val url = uploader.upload(
+            data = videoBytes,
+            objectName = objectName,
+            contentType = mimeType
+        ).getOrThrow()
+
+        val message = Message(
+            id = messageId,
+            senderId = senderId,
+            senderName = senderName,
+            type = Message.TYPE_VIDEO,
+            content = url,
+            timestamp = System.currentTimeMillis()
+        )
+        ref.setValue(message).await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
     suspend fun sendVoiceMessage(
         groupId: String,
         senderId: String,
