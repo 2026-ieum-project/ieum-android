@@ -3,15 +3,18 @@ package com.ieum.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.ieum.app.auth.ForgotPasswordScreen
 import com.ieum.app.ui.theme.IeumTheme
 import com.ieum.app.auth.LoginScreen
 import com.ieum.app.auth.RegisterScreen
 import com.ieum.app.auth.SplashScreen
 import com.ieum.app.chat.ChatScreen
+import com.ieum.app.diary.DiaryScreen
 import com.ieum.app.group.CreateGroupScreen
 import com.ieum.app.group.JoinGroupScreen
 import com.ieum.app.main.ChildMainScreen
@@ -38,6 +41,18 @@ class MainActivity : ComponentActivity() {
                 composable(NavRoute.CreateGroup.route) { CreateGroupScreen(navController) }
                 composable(NavRoute.JoinGroup.route) { JoinGroupScreen(navController) }
                 composable(NavRoute.Chat.route) { ChatScreen(navController) }
+                composable(
+                    NavRoute.Diary.route,
+                    arguments = listOf(navArgument(NavRoute.Diary.ARG_AUTO_RECORD) {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    })
+                ) { entry ->
+                    DiaryScreen(
+                        navController,
+                        autoRecord = entry.arguments?.getBoolean(NavRoute.Diary.ARG_AUTO_RECORD) == true
+                    )
+                }
             }
             }
         }

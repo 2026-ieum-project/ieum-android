@@ -36,8 +36,9 @@ android {
 
     buildTypes {
         release {
+            // R8 활성화: 코드 축소·난독화 (RTDB 리플렉션 모델은 @Keep으로 보호)
             optimization {
-                enable = false
+                enable = true
             }
         }
     }
@@ -69,6 +70,9 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     // Oracle Object Storage 업로드용
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // 영상 재생 (Media3 / ExoPlayer)
+    implementation("androidx.media3:media3-exoplayer:1.7.1")
+    implementation("androidx.media3:media3-ui:1.7.1")
     // 이미지 로딩
     implementation("io.coil-kt.coil3:coil-compose:3.2.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.2.0")

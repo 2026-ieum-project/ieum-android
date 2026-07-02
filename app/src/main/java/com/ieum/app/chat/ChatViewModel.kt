@@ -163,6 +163,24 @@ class ChatViewModel(
         }
     }
 
+    fun sendVideoMessage(videoBytes: ByteArray, mimeType: String = "video/mp4") {
+        val state = _uiState.value
+        if (state.groupId.isEmpty()) return
+
+        _uiState.value = state.copy(isSending = true)
+
+        viewModelScope.launch {
+            messageRepo.sendVideoMessage(
+                groupId = state.groupId,
+                senderId = state.uid,
+                senderName = state.userName,
+                videoBytes = videoBytes,
+                mimeType = mimeType
+            )
+            _uiState.value = _uiState.value.copy(isSending = false)
+        }
+    }
+
     fun sendVoiceMessage(audioBytes: ByteArray) {
         val state = _uiState.value
         if (state.groupId.isEmpty()) return

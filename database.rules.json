@@ -1,0 +1,119 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "name": {
+          ".read": "auth != null",
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 50"
+        },
+        "role": {
+          ".validate": "newData.isString() && (newData.val() == 'grandparent' || newData.val() == 'child' || newData.val() == 'grandchild')"
+        },
+        "gender": {
+          ".validate": "newData.isString()"
+        },
+        "groupId": {
+          ".validate": "newData.isString()"
+        },
+        "fcmToken": {
+          ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "groups": {
+      "$groupId": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        ".write": "auth != null && !data.exists() && newData.child('createdBy').val() == auth.uid && newData.child('members').child(auth.uid).exists()",
+        "members": {
+          "$memberUid": {
+            ".write": "auth != null && auth.uid == $memberUid",
+            ".validate": "newData.isString() && newData.val() == root.child('users').child(auth.uid).child('role').val()"
+          }
+        },
+        "lastRead": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid && root.child('groups').child($groupId).child('members').child(auth.uid).exists()",
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "inviteCode": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9]{6}$/)"
+        },
+        "createdBy": {
+          ".validate": "newData.isString()"
+        }
+      }
+    },
+    "inviteCodes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists() && newData.isString() && root.child('groups').child(newData.val()).child('members').child(auth.uid).exists()",
+        ".validate": "$code.matches(/^[A-Z0-9]{6}$/)"
+      }
+    },
+    "messages": {
+      "$groupId": {
+        ".read": "auth != null && root.child('groups').child($groupId).child('members').child(auth.uid).exists()",
+        ".indexOn": ["timestamp"],
+        "$messageId": {
+          ".write": "auth != null && !data.exists() && root.child('groups').child($groupId).child('members').child(auth.uid).exists() && newData.child('senderId').val() == auth.uid",
+          ".validate": "newData.hasChildren(['senderId', 'senderName', 'type', 'content', 'timestamp'])",
+          "id": {
+            ".validate": "newData.isString()"
+          },
+          "senderId": {
+            ".validate": "newData.isString()"
+          },
+          "senderName": {
+            ".validate": "newData.isString() && newData.val().length <= 50"
+          },
+          "type": {
+            ".validate": "newData.val() == 'text' || newData.val() == 'voice' || newData.val() == 'image' || newData.val() == 'video'"
+          },
+          "content": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 10000"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "diaries": {
+      "$groupId": {
+        ".read": "auth != null && root.child('groups').child($groupId).child('members').child(auth.uid).exists()",
+        ".indexOn": ["timestamp"],
+        "$diaryId": {
+          ".write": "auth != null && !data.exists() && root.child('groups').child($groupId).child('members').child(auth.uid).exists() && newData.child('senderId').val() == auth.uid",
+          ".validate": "newData.hasChildren(['senderId', 'senderName', 'videoUrl', 'timestamp'])",
+          "id": {
+            ".validate": "newData.isString()"
+          },
+          "senderId": {
+            ".validate": "newData.isString()"
+          },
+          "senderName": {
+            ".validate": "newData.isString() && newData.val().length <= 50"
+          },
+          "videoUrl": {
+            ".validate": "newData.isString() && newData.val().beginsWith('https://')"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}

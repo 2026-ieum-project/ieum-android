@@ -96,22 +96,24 @@ class MessageRepository(
             .child("lastRead").child(uid)
         val messagesRef = db.reference.child("messages").child(groupId)
 
-        // lastRead 변경 시 다시 계산해야 하므로 두 리스너를 조합
         var lastReadTimestamp = 0L
+        var unreadCount = 0
+        var initialLoadDone = false
 
         val lastReadListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 lastReadTimestamp = snapshot.getValue(Long::class.java) ?: 0L
-                // lastRead가 변경되면 메시지를 다시 세야 함 → 메시지 리스너가 트리거
-                // 직접 한 번 재계산
+                initialLoadDone = false
+                // lastRead 변경 시에만 전체 쿼리로 카운트 재계산
                 messagesRef.orderByChild("timestamp")
                     .startAfter(lastReadTimestamp.toDouble())
                     .get().addOnSuccessListener { snap ->
-                        val count = snap.children.count { child ->
+                        unreadCount = snap.children.count { child ->
                             val senderId = child.child("senderId").getValue(String::class.java)
                             senderId != null && senderId != uid
                         }
-                        trySend(count)
+                        initialLoadDone = true
+                        trySend(unreadCount)
                     }
             }
 
@@ -122,19 +124,12 @@ class MessageRepository(
 
         val messagesListener = object : ChildEventListener {
             override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                if (!initialLoadDone) return
                 val ts = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
                 val senderId = snapshot.child("senderId").getValue(String::class.java)
                 if (ts > lastReadTimestamp && senderId != null && senderId != uid) {
-                    // 새 메시지 추가 시 전체 재계산
-                    messagesRef.orderByChild("timestamp")
-                        .startAfter(lastReadTimestamp.toDouble())
-                        .get().addOnSuccessListener { snap ->
-                            val count = snap.children.count { child ->
-                                val sid = child.child("senderId").getValue(String::class.java)
-                                sid != null && sid != uid
-                            }
-                            trySend(count)
-                        }
+                    unreadCount++
+                    trySend(unreadCount)
                 }
             }
 
@@ -215,6 +210,42 @@ class MessageRepository(
             senderId = senderId,
             senderName = senderName,
             type = Message.TYPE_IMAGE,
+            content = url,
+            timestamp = System.currentTimeMillis()
+        )
+        ref.setValue(message).await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    suspend fun sendVideoMessage(
+        groupId: String,
+        senderId: String,
+        senderName: String,
+        videoBytes: ByteArray,
+        mimeType: String = "video/mp4"
+    ): Result<Unit> = try {
+        val ref = db.reference.child("messages").child(groupId).push()
+        val messageId = ref.key ?: throw IllegalStateException("메시지 ID 생성 실패")
+        val extension = when (mimeType) {
+            "video/webm" -> "webm"
+            "video/3gpp" -> "3gp"
+            else -> "mp4"
+        }
+        val objectName = "videos/$groupId/$messageId.$extension"
+
+        val url = uploader.upload(
+            data = videoBytes,
+            objectName = objectName,
+            contentType = mimeType
+        ).getOrThrow()
+
+        val message = Message(
+            id = messageId,
+            senderId = senderId,
+            senderName = senderName,
+            type = Message.TYPE_VIDEO,
             content = url,
             timestamp = System.currentTimeMillis()
         )

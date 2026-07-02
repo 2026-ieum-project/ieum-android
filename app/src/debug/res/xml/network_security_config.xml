@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 디버그 전용: 에뮬레이터 호스트(10.0.2.2)로의 평문 HTTP만 허용.
+     릴리스 빌드에는 이 설정이 포함되지 않아 플랫폼 기본값(cleartext 전면 차단)이 적용된다. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

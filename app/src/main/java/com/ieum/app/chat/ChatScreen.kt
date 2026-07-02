@@ -6,12 +6,15 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.OptIn
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,12 +38,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,14 +74,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ieum.app.api.FeatureApiClient
@@ -86,7 +103,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewModel()) {
     val context = LocalContext.current
@@ -106,15 +123,29 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
         ActivityResultContracts.RequestPermission()
     ) { /* 권한 결과는 버튼 클릭 시 재확인 */ }
 
-    // 갤러리 선택 런처
+    // 전체화면 미디어 뷰어 상태
+    var viewingImage by remember { mutableStateOf<Message?>(null) }
+    var playingVideo by remember { mutableStateOf<Message?>(null) }
+
+    // 갤러리 선택 런처 (사진 + 영상)
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         val contentResolver = context.contentResolver
         val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
-        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
-        viewModel.sendImageMessage(bytes, mimeType)
+        if (mimeType.startsWith("video/")) {
+            val size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+            if (size > MAX_VIDEO_BYTES) {
+                Toast.makeText(context, "영상이 너무 큽니다 (최대 50MB)", Toast.LENGTH_SHORT).show()
+                return@rememberLauncherForActivityResult
+            }
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
+            viewModel.sendVideoMessage(bytes, mimeType)
+        } else {
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
+            viewModel.sendImageMessage(bytes, mimeType)
+        }
     }
 
     // 카메라 촬영 런처
@@ -144,13 +175,45 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
         }
     }
 
+    // 영상 촬영 런처
+    val cameraVideoUri = remember { mutableStateOf<Uri?>(null) }
+    val videoCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CaptureVideo()
+    ) { success ->
+        if (!success) return@rememberLauncherForActivityResult
+        val uri = cameraVideoUri.value ?: return@rememberLauncherForActivityResult
+        val contentResolver = context.contentResolver
+        val mimeType = contentResolver.getType(uri) ?: "video/mp4"
+        val size = contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        if (size > MAX_VIDEO_BYTES) {
+            Toast.makeText(context, "영상이 너무 큽니다 (최대 50MB)", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@rememberLauncherForActivityResult
+        viewModel.sendVideoMessage(bytes, mimeType)
+    }
+
+    // 영상 촬영 권한 런처
+    val videoPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val file = File(context.cacheDir, "video_${System.currentTimeMillis()}.mp4")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraVideoUri.value = uri
+            videoCaptureLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "카메라 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // 갤러리 권한 런처 (Android 12 이하)
     val galleryPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             galleryLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
             )
         } else {
             Toast.makeText(context, "갤러리 접근 권한이 필요합니다", Toast.LENGTH_SHORT).show()
@@ -275,8 +338,21 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                     }
 
                     items(state.messages, key = { it.id }) { message ->
-                        MessageBubble(message = message, isMine = message.senderId == state.uid)
+                        MessageBubble(
+                            message = message,
+                            isMine = message.senderId == state.uid,
+                            onImageClick = { viewingImage = message },
+                            onVideoClick = { playingVideo = message }
+                        )
                     }
+                }
+
+                // 미디어 업로드 중 표시
+                if (state.isSending) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
 
                 // 입력 바
@@ -426,7 +502,7 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                     .padding(bottom = 32.dp)
             ) {
                 Text(
-                    "사진 보내기",
+                    "사진·영상 보내기",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 20.dp)
@@ -463,20 +539,57 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(Modifier.width(16.dp))
-                        Text("카메라로 촬영", fontSize = 16.sp, fontWeight = FontWeight.W600)
+                        Text("사진 촬영", fontSize = 16.sp, fontWeight = FontWeight.W600)
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
 
-                // 갤러리에서 선택
+                // 영상 촬영
+                Surface(
+                    onClick = {
+                        showPhotoSheet = false
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            val file = File(context.cacheDir, "video_${System.currentTimeMillis()}.mp4")
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                            cameraVideoUri.value = uri
+                            videoCaptureLauncher.launch(uri)
+                        } else {
+                            videoPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text("영상 촬영", fontSize = 16.sp, fontWeight = FontWeight.W600)
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // 갤러리에서 선택 (사진 + 영상)
                 Surface(
                     onClick = {
                         showPhotoSheet = false
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             // Android 13+: Photo Picker는 권한 불필요
                             galleryLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                             )
                         } else {
                             // Android 12 이하: READ_EXTERNAL_STORAGE 필요
@@ -484,7 +597,7 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
                                 == PackageManager.PERMISSION_GRANTED
                             ) {
                                 galleryLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                 )
                             } else {
                                 galleryPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -513,10 +626,27 @@ fun ChatScreen(navController: NavController, viewModel: ChatViewModel = viewMode
             }
         }
     }
+
+    // 이미지 전체화면 보기
+    viewingImage?.let { message ->
+        ImageViewerOverlay(message = message, onDismiss = { viewingImage = null })
+    }
+
+    // 영상 전체화면 재생
+    playingVideo?.let { message ->
+        VideoPlayerOverlay(message = message, onDismiss = { playingVideo = null })
+    }
 }
 
+private const val MAX_VIDEO_BYTES = 50L * 1024 * 1024
+
 @Composable
-private fun MessageBubble(message: Message, isMine: Boolean) {
+private fun MessageBubble(
+    message: Message,
+    isMine: Boolean,
+    onImageClick: () -> Unit,
+    onVideoClick: () -> Unit
+) {
     var isPlaying by remember { mutableStateOf(false) }
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
     val bubbleColor = if (isMine) BubbleSent else BubbleReceived
@@ -551,10 +681,41 @@ private fun MessageBubble(message: Message, isMine: Boolean) {
                         AsyncImage(
                             model = message.content,
                             contentDescription = "사진",
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .size(200.dp)
-                                .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.LightGray.copy(alpha = 0.3f))
+                                .clickable(onClick = onImageClick)
                         )
+                    }
+                    Message.TYPE_VIDEO -> {
+                        Box(
+                            modifier = Modifier
+                                .size(200.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black.copy(alpha = 0.85f))
+                                .clickable(onClick = onVideoClick),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .background(Color.White.copy(alpha = 0.3f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = "영상 재생",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text("영상 메시지", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
                     }
                     else -> {
                         // voice
@@ -604,6 +765,154 @@ private fun MessageBubble(message: Message, isMine: Boolean) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
+        }
+    }
+}
+
+@Composable
+private fun ImageViewerOverlay(message: Message, onDismiss: () -> Unit) {
+    BackHandler(onBack = onDismiss)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            // 오버레이 아래 채팅 화면으로 터치가 전달되지 않도록 소비
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        MediaOverlayTopBar(
+            title = "${message.senderName}의 사진",
+            subtitle = formatTime(message.timestamp)
+        )
+
+        AsyncImage(
+            model = message.content,
+            contentDescription = "사진 크게 보기",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        )
+
+        MediaOverlayCloseButton(onDismiss = onDismiss)
+    }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun VideoPlayerOverlay(message: Message, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(message.content))
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
+    BackHandler(onBack = onDismiss)
+
+    // 상단 바를 PlayerView와 겹치지 않게 분리 배치:
+    // PlayerView는 자기 영역의 터치를 모두 소비하므로 위에 겹친 Compose 버튼이 눌리지 않음
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            // 오버레이 아래 채팅 화면으로 터치가 전달되지 않도록 소비
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        MediaOverlayTopBar(
+            title = "${message.senderName}의 영상",
+            subtitle = formatTime(message.timestamp)
+        )
+
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        )
+
+        MediaOverlayCloseButton(onDismiss = onDismiss)
+    }
+}
+
+@Composable
+private fun MediaOverlayTopBar(title: String, subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.5f))
+            // 강제 edge-to-edge(targetSdk 35+) 대응: 상태바 아래로 내용 배치
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.W800,
+                color = Color.White
+            )
+            Text(
+                subtitle,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.W600,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MediaOverlayCloseButton(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.5f))
+            // 하단 제스처 바와 겹치지 않게 배치
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White.copy(alpha = 0.2f),
+                contentColor = Color.White
+            )
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("닫기", fontSize = 18.sp, fontWeight = FontWeight.W700)
         }
     }
 }
