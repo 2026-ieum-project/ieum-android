@@ -4,11 +4,13 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +20,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -388,40 +392,31 @@ private fun VideoPlayerOverlay(
         }
     }
 
-    Box(
+    BackHandler(onBack = onDismiss)
+
+    // 상단 바를 PlayerView와 겹치지 않게 분리 배치:
+    // PlayerView는 자기 영역의 터치를 모두 소비하므로 위에 겹친 Compose 버튼이 눌리지 않음
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            // 오버레이 아래 화면으로 터치가 전달되지 않도록 소비
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
-        // 영상 플레이어
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = true
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // 상단 바: 닫기 버튼 + 제목
+        // 상단 바: 제목
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.5f))
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                // 강제 edge-to-edge(targetSdk 35+) 대응: 상태바 아래로 내용 배치
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onDismiss) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "닫기",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(Modifier.width(8.dp))
             Column {
                 Text(
                     title,
@@ -435,6 +430,50 @@ private fun VideoPlayerOverlay(
                     fontWeight = FontWeight.W600,
                     color = Color.White.copy(alpha = 0.7f)
                 )
+            }
+        }
+
+        // 영상 플레이어
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = true
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        )
+
+        // 하단 닫기 버튼 (크고 누르기 쉽게)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.5f))
+                // 하단 제스처 바와 겹치지 않게 배치
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White.copy(alpha = 0.2f),
+                    contentColor = Color.White
+                )
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("닫기", fontSize = 18.sp, fontWeight = FontWeight.W700)
             }
         }
     }

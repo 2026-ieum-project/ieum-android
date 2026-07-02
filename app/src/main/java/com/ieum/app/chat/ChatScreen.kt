@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,6 +45,8 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -769,7 +773,7 @@ private fun MessageBubble(
 private fun ImageViewerOverlay(message: Message, onDismiss: () -> Unit) {
     BackHandler(onBack = onDismiss)
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
@@ -780,18 +784,21 @@ private fun ImageViewerOverlay(message: Message, onDismiss: () -> Unit) {
                 onClick = {}
             )
     ) {
+        MediaOverlayTopBar(
+            title = "${message.senderName}의 사진",
+            subtitle = formatTime(message.timestamp)
+        )
+
         AsyncImage(
             model = message.content,
             contentDescription = "사진 크게 보기",
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
         )
 
-        MediaOverlayTopBar(
-            title = "${message.senderName}의 사진",
-            subtitle = formatTime(message.timestamp),
-            onDismiss = onDismiss
-        )
+        MediaOverlayCloseButton(onDismiss = onDismiss)
     }
 }
 
@@ -815,11 +822,24 @@ private fun VideoPlayerOverlay(message: Message, onDismiss: () -> Unit) {
 
     BackHandler(onBack = onDismiss)
 
-    Box(
+    // 상단 바를 PlayerView와 겹치지 않게 분리 배치:
+    // PlayerView는 자기 영역의 터치를 모두 소비하므로 위에 겹친 Compose 버튼이 눌리지 않음
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            // 오버레이 아래 채팅 화면으로 터치가 전달되지 않도록 소비
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
+        MediaOverlayTopBar(
+            title = "${message.senderName}의 영상",
+            subtitle = formatTime(message.timestamp)
+        )
+
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -828,35 +848,26 @@ private fun VideoPlayerOverlay(message: Message, onDismiss: () -> Unit) {
                     setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
         )
 
-        MediaOverlayTopBar(
-            title = "${message.senderName}의 영상",
-            subtitle = formatTime(message.timestamp),
-            onDismiss = onDismiss
-        )
+        MediaOverlayCloseButton(onDismiss = onDismiss)
     }
 }
 
 @Composable
-private fun MediaOverlayTopBar(title: String, subtitle: String, onDismiss: () -> Unit) {
+private fun MediaOverlayTopBar(title: String, subtitle: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = 0.5f))
-            .padding(horizontal = 8.dp, vertical = 12.dp),
+            // 강제 edge-to-edge(targetSdk 35+) 대응: 상태바 아래로 내용 배치
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onDismiss) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = "닫기",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        Spacer(Modifier.width(8.dp))
         Column {
             Text(
                 title,
@@ -870,6 +881,38 @@ private fun MediaOverlayTopBar(title: String, subtitle: String, onDismiss: () ->
                 fontWeight = FontWeight.W600,
                 color = Color.White.copy(alpha = 0.7f)
             )
+        }
+    }
+}
+
+@Composable
+private fun MediaOverlayCloseButton(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.5f))
+            // 하단 제스처 바와 겹치지 않게 배치
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Button(
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White.copy(alpha = 0.2f),
+                contentColor = Color.White
+            )
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("닫기", fontSize = 18.sp, fontWeight = FontWeight.W700)
         }
     }
 }
