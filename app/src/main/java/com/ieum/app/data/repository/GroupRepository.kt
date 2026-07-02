@@ -2,6 +2,7 @@ package com.ieum.app.data.repository
 
 import com.google.firebase.database.FirebaseDatabase
 import kotlinx.coroutines.tasks.await
+import java.security.SecureRandom
 
 data class GroupMemberInfo(
     val grandparentName: String? = null,
@@ -65,15 +66,26 @@ class GroupRepository(
     }
 
     suspend fun createGroup(uid: String): Result<String> = try {
-        val code = generateInviteCode()
+        // 보안 규칙이 멤버 역할 == users/{uid}/role 일치를 검증하므로 실제 역할을 사용
+        val role = db.reference.child("users").child(uid).child("role").get().await()
+            .getValue(String::class.java) ?: "child"
+
         val groupsRef = db.reference.child("groups")
         val newGroupRef = groupsRef.push()
         val groupId = newGroupRef.key ?: throw IllegalStateException("그룹 ID 생성 실패")
 
+        // 사용 중이지 않은 초대 코드 확보 (경합 시에는 보안 규칙의 !data.exists()가 최종 방어)
+        var code = generateInviteCode()
+        var attempts = 0
+        while (db.reference.child("inviteCodes").child(code).get().await().exists()) {
+            if (++attempts >= 5) throw IllegalStateException("초대 코드 생성에 실패했습니다. 다시 시도해주세요")
+            code = generateInviteCode()
+        }
+
         val groupData = mapOf(
             "inviteCode" to code,
             "createdBy" to uid,
-            "members" to mapOf(uid to "child")
+            "members" to mapOf(uid to role)
         )
         newGroupRef.setValue(groupData).await()
         db.reference.child("inviteCodes").child(code).setValue(groupId).await()
@@ -86,21 +98,11 @@ class GroupRepository(
 
     suspend fun joinGroup(uid: String, role: String, code: String): Result<Unit> = try {
         val ref = db.reference
-        // inviteCodes에서 그룹 ID 조회
-        var groupId = ref.child("inviteCodes").child(code).get().await()
+        val groupId = ref.child("inviteCodes").child(code).get().await()
             .getValue(String::class.java)
 
         if (groupId.isNullOrEmpty()) {
-            // 구버전 호환: groups에서 직접 검색
-            val groupSnapshot = ref.child("groups")
-                .orderByChild("inviteCode").equalTo(code).get().await()
-            if (!groupSnapshot.exists()) {
-                throw IllegalArgumentException("유효하지 않은 초대 코드입니다")
-            }
-            val groupEntry = groupSnapshot.children.first()
-            groupId = groupEntry.key ?: throw IllegalStateException("그룹 정보를 읽을 수 없습니다")
-            // 이후 조회를 위해 inviteCodes에도 저장
-            ref.child("inviteCodes").child(code).setValue(groupId).await()
+            throw IllegalArgumentException("유효하지 않은 초대 코드입니다")
         }
 
         ref.child("groups").child(groupId).child("members").child(uid).setValue(role).await()
@@ -112,7 +114,12 @@ class GroupRepository(
     }
 
     private fun generateInviteCode(): String {
-        val chars = ('A'..'Z') + ('0'..'9')
-        return (1..6).map { chars.random() }.joinToString("")
+        // 노인 사용자가 혼동하기 쉬운 문자(0/O, 1/I/L) 제외
+        val chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+        return (1..6).map { chars[secureRandom.nextInt(chars.length)] }.joinToString("")
+    }
+
+    companion object {
+        private val secureRandom = SecureRandom()
     }
 }
