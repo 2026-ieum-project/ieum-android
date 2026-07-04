@@ -124,7 +124,7 @@ fun GrandchildMainScreen(navController: NavController, viewModel: GrandchildView
                         NotificationBell(
                             size = 44,
                             unreadCount = state.messageCount,
-                            onClick = { navController.navigate(NavRoute.Chat.route) }
+                            onClick = { navController.navigate(NavRoute.Notifications.route) }
                         )
                     }
                 }

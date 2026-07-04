@@ -88,6 +88,19 @@ class MessageRepository(
     }
 
     /**
+     * 내가 마지막으로 읽은 시점을 한 번 조회한다.
+     */
+    suspend fun getLastRead(groupId: String, uid: String): Long = try {
+        db.reference.child("groups").child(groupId)
+            .child("lastRead").child(uid)
+            .get()
+            .await()
+            .getValue(Long::class.java) ?: 0L
+    } catch (e: Exception) {
+        0L
+    }
+
+    /**
      * 읽지 않은 메시지 수를 실시간 감지한다.
      * 상대방이 보낸 메시지 중, 내가 마지막으로 읽은 시점 이후의 메시지만 카운트한다.
      */
