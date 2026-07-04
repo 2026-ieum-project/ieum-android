@@ -4,6 +4,7 @@ import com.ieum.app.NavRoute
 import com.ieum.app.ui.theme.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -123,7 +124,11 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                             ) {
                                 Text("우리 가족", fontSize = 16.sp, fontWeight = FontWeight.W700, color = InkSub)
                             }
-                            NotificationBell(size = 52)
+                            NotificationBell(
+                                size = 52,
+                                unreadCount = state.messageCount,
+                                onClick = { navController.navigate(NavRoute.Chat.route) }
+                            )
                         }
                         Spacer(Modifier.height(18.dp))
                         Text(
@@ -466,26 +471,42 @@ fun SageOutlineButton(
 }
 
 @Composable
-fun NotificationBell(size: Int = 44) {
+fun NotificationBell(
+    size: Int = 44,
+    unreadCount: Int = 0,
+    onClick: (() -> Unit)? = null
+) {
     Box(
         modifier = Modifier
             .size(size.dp)
+            .clip(CircleShape)
             .background(Color.White, CircleShape)
-            .border(1.dp, Line, CircleShape),
+            .border(1.dp, Line, CircleShape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             Icons.Outlined.Notifications, "알림",
             tint = InkSub, modifier = Modifier.size((size * 0.5).dp)
         )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-8).dp, y = 8.dp)
-                .size(11.dp)
-                .background(Coral, CircleShape)
-                .border(2.dp, Color.White, CircleShape)
-        )
+        if (unreadCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-4).dp, y = 4.dp)
+                    .size(17.dp)
+                    .background(Coral, CircleShape)
+                    .border(2.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (unreadCount > 9) "9+" else unreadCount.toString(),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.W800,
+                    color = Color.White
+                )
+            }
+        }
     }
 }
 
