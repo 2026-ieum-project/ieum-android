@@ -30,7 +30,7 @@ android {
         buildConfigField("String", "ORACLE_NAMESPACE", "\"${localProp("ORACLE_NAMESPACE")}\"")
         buildConfigField("String", "ORACLE_BUCKET_NAME", "\"${localProp("ORACLE_BUCKET_NAME")}\"")
         buildConfigField("String", "ORACLE_REGION", "\"${localProp("ORACLE_REGION")}\"")
-        buildConfigField("String", "ORACLE_PAR_URL", "\"${localProp("ORACLE_PAR_URL")}\"")
+        buildConfigField("String", "ORACLE_READ_PAR_URL", "\"${localProp("ORACLE_READ_PAR_URL")}\"")
         buildConfigField("String", "IEUM_SERVER_URL", "\"${localProp("IEUM_SERVER_URL")}\"")
     }
 
@@ -68,6 +68,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-functions")
     // Oracle Object Storage 업로드용
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // 영상 재생 (Media3 / ExoPlayer)
