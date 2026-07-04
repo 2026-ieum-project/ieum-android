@@ -32,6 +32,8 @@ class IeumMessagingService : FirebaseMessagingService() {
         val displayBody = when (messageType) {
             "voice" -> "$senderName: 음성 메시지"
             "image" -> "$senderName: 사진"
+            "video" -> "$senderName: 영상"
+            "diary" -> "$senderName: 영상일기"
             else -> "$senderName: $body"
         }
 
