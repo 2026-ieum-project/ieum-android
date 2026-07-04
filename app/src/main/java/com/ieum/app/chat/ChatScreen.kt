@@ -93,6 +93,7 @@ import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ieum.app.api.FeatureApiClient
 import com.ieum.app.keystroke.KeystrokeAnalyzer
+import com.ieum.app.storage.OracleObjectStorageConfig
 import com.ieum.app.ui.theme.BubbleReceived
 import com.ieum.app.ui.theme.BubbleReceivedText
 import com.ieum.app.ui.theme.BubbleSent
@@ -688,7 +689,7 @@ private fun MessageBubble(
                     }
                     Message.TYPE_IMAGE -> {
                         AsyncImage(
-                            model = message.content,
+                            model = OracleObjectStorageConfig.resolveReadUrl(message.content),
                             contentDescription = "사진",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -743,7 +744,9 @@ private fun MessageBubble(
                                     try {
                                         val mp = MediaPlayer()
                                         player.value = mp
-                                        mp.setDataSource(message.content)
+                                        mp.setDataSource(
+                                            OracleObjectStorageConfig.resolveReadUrl(message.content)
+                                        )
                                         mp.setOnErrorListener { p, _, _ ->
                                             isPlaying = false
                                             p.release()
@@ -809,7 +812,7 @@ private fun ImageViewerOverlay(message: Message, onDismiss: () -> Unit) {
         )
 
         AsyncImage(
-            model = message.content,
+            model = OracleObjectStorageConfig.resolveReadUrl(message.content),
             contentDescription = "사진 크게 보기",
             contentScale = ContentScale.Fit,
             modifier = Modifier
@@ -827,7 +830,9 @@ private fun VideoPlayerOverlay(message: Message, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(message.content))
+            setMediaItem(
+                MediaItem.fromUri(OracleObjectStorageConfig.resolveReadUrl(message.content))
+            )
             prepare()
             playWhenReady = true
         }
