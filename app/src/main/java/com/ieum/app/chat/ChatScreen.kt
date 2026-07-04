@@ -649,6 +649,15 @@ private fun MessageBubble(
 ) {
     var isPlaying by remember { mutableStateOf(false) }
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
+
+    // 버블이 화면에서 사라지면 재생 중이던 플레이어 해제
+    DisposableEffect(Unit) {
+        onDispose {
+            player.value?.release()
+            player.value = null
+        }
+    }
+
     val bubbleColor = if (isMine) BubbleSent else BubbleReceived
     val textColor = if (isMine) BubbleSentText else BubbleReceivedText
 
@@ -719,10 +728,17 @@ private fun MessageBubble(
                     }
                     else -> {
                         // voice
+                        val context = LocalContext.current
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
-                                    if (isPlaying) return@IconButton
+                                    // 재생(또는 준비) 중이면 정지
+                                    player.value?.let { current ->
+                                        current.release()
+                                        player.value = null
+                                        isPlaying = false
+                                        return@IconButton
+                                    }
                                     isPlaying = true
                                     try {
                                         val mp = MediaPlayer()
@@ -732,6 +748,7 @@ private fun MessageBubble(
                                             isPlaying = false
                                             p.release()
                                             player.value = null
+                                            Toast.makeText(context, "음성을 재생할 수 없습니다", Toast.LENGTH_SHORT).show()
                                             true
                                         }
                                         mp.setOnPreparedListener { it.start() }
@@ -743,7 +760,9 @@ private fun MessageBubble(
                                         mp.prepareAsync()
                                     } catch (e: Exception) {
                                         isPlaying = false
+                                        player.value?.release()
                                         player.value = null
+                                        Toast.makeText(context, "음성을 재생할 수 없습니다", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             ) {
