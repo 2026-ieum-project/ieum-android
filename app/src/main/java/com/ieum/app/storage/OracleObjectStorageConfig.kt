@@ -13,4 +13,20 @@ object OracleObjectStorageConfig {
     fun getObjectUrl(objectName: String): String {
         return "${READ_PAR_URL.trimEnd('/')}/$objectName"
     }
+
+    /**
+     * DB에 저장된 미디어 URL을 현재 읽기 PAR 기준 URL로 재조립한다.
+     * 메시지에는 전송 시점의 PAR가 포함된 전체 URL이 저장되므로,
+     * PAR를 교체하면 저장된 URL 그대로는 만료되어 읽을 수 없다.
+     */
+    fun resolveReadUrl(storedUrl: String): String {
+        val marker = "/b/$BUCKET_NAME/o/"
+        val idx = storedUrl.indexOf(marker)
+        return when {
+            idx >= 0 -> getObjectUrl(storedUrl.substring(idx + marker.length))
+            // PAR 미설정 상태로 전송되어 경로만 저장된 메시지
+            !storedUrl.startsWith("http") -> getObjectUrl(storedUrl.trimStart('/'))
+            else -> storedUrl
+        }
+    }
 }

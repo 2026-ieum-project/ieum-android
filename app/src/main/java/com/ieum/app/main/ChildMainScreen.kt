@@ -111,7 +111,11 @@ fun ChildMainScreen(navController: NavController, viewModel: ChildViewModel = vi
                                 fontSize = 22.sp, fontWeight = FontWeight.W800, color = Ink
                             )
                         }
-                        NotificationBell(size = 44)
+                        NotificationBell(
+                            size = 44,
+                            unreadCount = state.messageCount,
+                            onClick = { navController.navigate(NavRoute.Chat.route) }
+                        )
                     }
                 }
 

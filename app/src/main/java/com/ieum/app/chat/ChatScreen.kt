@@ -93,10 +93,12 @@ import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.ieum.app.api.FeatureApiClient
 import com.ieum.app.keystroke.KeystrokeAnalyzer
+import com.ieum.app.storage.OracleObjectStorageConfig
 import com.ieum.app.ui.theme.BubbleReceived
 import com.ieum.app.ui.theme.BubbleReceivedText
 import com.ieum.app.ui.theme.BubbleSent
 import com.ieum.app.ui.theme.BubbleSentText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -648,7 +650,30 @@ private fun MessageBubble(
     onVideoClick: () -> Unit
 ) {
     var isPlaying by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableStateOf(0) }
+    var durationMs by remember { mutableStateOf(0) }
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
+
+    // 버블이 화면에서 사라지면 재생 중이던 플레이어 해제
+    DisposableEffect(Unit) {
+        onDispose {
+            player.value?.release()
+            player.value = null
+        }
+    }
+
+    // 재생 중 진행 상태 갱신
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            player.value?.let { mp ->
+                runCatching {
+                    if (mp.isPlaying) positionMs = mp.currentPosition
+                }
+            }
+            delay(200)
+        }
+    }
+
     val bubbleColor = if (isMine) BubbleSent else BubbleReceived
     val textColor = if (isMine) BubbleSentText else BubbleReceivedText
 
@@ -679,7 +704,7 @@ private fun MessageBubble(
                     }
                     Message.TYPE_IMAGE -> {
                         AsyncImage(
-                            model = message.content,
+                            model = OracleObjectStorageConfig.resolveReadUrl(message.content),
                             contentDescription = "사진",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
@@ -719,31 +744,52 @@ private fun MessageBubble(
                     }
                     else -> {
                         // voice
+                        val context = LocalContext.current
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = {
-                                    if (isPlaying) return@IconButton
+                                    // 재생(또는 준비) 중이면 정지
+                                    player.value?.let { current ->
+                                        current.release()
+                                        player.value = null
+                                        isPlaying = false
+                                        positionMs = 0
+                                        return@IconButton
+                                    }
                                     isPlaying = true
                                     try {
                                         val mp = MediaPlayer()
                                         player.value = mp
-                                        mp.setDataSource(message.content)
+                                        mp.setDataSource(
+                                            OracleObjectStorageConfig.resolveReadUrl(message.content)
+                                        )
                                         mp.setOnErrorListener { p, _, _ ->
                                             isPlaying = false
+                                            positionMs = 0
+                                            durationMs = 0
                                             p.release()
                                             player.value = null
+                                            Toast.makeText(context, "음성을 재생할 수 없습니다", Toast.LENGTH_SHORT).show()
                                             true
                                         }
-                                        mp.setOnPreparedListener { it.start() }
+                                        mp.setOnPreparedListener {
+                                            durationMs = it.duration
+                                            it.start()
+                                        }
                                         mp.setOnCompletionListener {
                                             isPlaying = false
+                                            positionMs = 0
                                             it.release()
                                             player.value = null
                                         }
                                         mp.prepareAsync()
                                     } catch (e: Exception) {
                                         isPlaying = false
+                                        positionMs = 0
+                                        durationMs = 0
+                                        player.value?.release()
                                         player.value = null
+                                        Toast.makeText(context, "음성을 재생할 수 없습니다", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             ) {
@@ -754,7 +800,27 @@ private fun MessageBubble(
                                     tint = textColor
                                 )
                             }
-                            Text(text = "음성 메시지", color = textColor)
+                            Column {
+                                Text(text = "음성 메시지", color = textColor)
+                                // 재생을 시작해 길이를 알게 되면 진행 상태 표시
+                                if (durationMs > 0) {
+                                    Spacer(Modifier.height(4.dp))
+                                    LinearProgressIndicator(
+                                        progress = {
+                                            (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                                        },
+                                        modifier = Modifier.width(140.dp),
+                                        color = textColor,
+                                        trackColor = textColor.copy(alpha = 0.25f)
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = "${formatDuration(positionMs)} / ${formatDuration(durationMs)}",
+                                        fontSize = 11.sp,
+                                        color = textColor.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -790,7 +856,7 @@ private fun ImageViewerOverlay(message: Message, onDismiss: () -> Unit) {
         )
 
         AsyncImage(
-            model = message.content,
+            model = OracleObjectStorageConfig.resolveReadUrl(message.content),
             contentDescription = "사진 크게 보기",
             contentScale = ContentScale.Fit,
             modifier = Modifier
@@ -808,7 +874,9 @@ private fun VideoPlayerOverlay(message: Message, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(message.content))
+            setMediaItem(
+                MediaItem.fromUri(OracleObjectStorageConfig.resolveReadUrl(message.content))
+            )
             prepare()
             playWhenReady = true
         }
@@ -921,4 +989,9 @@ private fun formatTime(timestamp: Long): String {
     return SimpleDateFormat("HH:mm", Locale.getDefault()).apply {
         timeZone = java.util.TimeZone.getTimeZone("Asia/Seoul")
     }.format(Date(timestamp))
+}
+
+private fun formatDuration(ms: Int): String {
+    val totalSec = ms / 1000
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
 }

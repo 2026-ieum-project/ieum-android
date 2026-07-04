@@ -74,6 +74,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
+import com.ieum.app.storage.OracleObjectStorageConfig
 import com.ieum.app.ui.theme.Coral
 import com.ieum.app.ui.theme.CoralSoft
 import com.ieum.app.ui.theme.Ink
@@ -385,7 +386,9 @@ private fun VideoPlayerOverlay(
     val context = LocalContext.current
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
+            setMediaItem(
+                MediaItem.fromUri(OracleObjectStorageConfig.resolveReadUrl(videoUrl))
+            )
             prepare()
             playWhenReady = true
         }
