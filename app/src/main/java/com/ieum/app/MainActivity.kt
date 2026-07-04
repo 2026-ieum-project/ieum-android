@@ -20,6 +20,7 @@ import com.ieum.app.group.JoinGroupScreen
 import com.ieum.app.main.ChildMainScreen
 import com.ieum.app.main.GrandchildMainScreen
 import com.ieum.app.main.GrandparentMainScreen
+import com.ieum.app.notification.NotificationScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
                 composable(NavRoute.CreateGroup.route) { CreateGroupScreen(navController) }
                 composable(NavRoute.JoinGroup.route) { JoinGroupScreen(navController) }
                 composable(NavRoute.Chat.route) { ChatScreen(navController) }
+                composable(NavRoute.Notifications.route) { NotificationScreen(navController) }
                 composable(
                     NavRoute.Diary.route,
                     arguments = listOf(navArgument(NavRoute.Diary.ARG_AUTO_RECORD) {

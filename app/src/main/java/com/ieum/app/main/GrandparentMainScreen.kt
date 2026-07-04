@@ -127,7 +127,7 @@ fun GrandparentMainScreen(navController: NavController, viewModel: GrandparentVi
                             NotificationBell(
                                 size = 52,
                                 unreadCount = state.messageCount,
-                                onClick = { navController.navigate(NavRoute.Chat.route) }
+                                onClick = { navController.navigate(NavRoute.Notifications.route) }
                             )
                         }
                         Spacer(Modifier.height(18.dp))
