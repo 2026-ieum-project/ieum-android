@@ -1,6 +1,7 @@
 package com.ieum.app.group
 
 import com.ieum.app.NavRoute
+import com.ieum.app.auth.roleToRoute
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,7 +44,7 @@ fun JoinGroupScreen(navController: NavController, viewModel: JoinGroupViewModel 
 
     LaunchedEffect(state.isJoined) {
         if (state.isJoined) {
-            navController.navigate(NavRoute.Chat.route) {
+            navController.navigate(roleToRoute(state.userRole)) {
                 popUpTo(0) { inclusive = true }
             }
         }
@@ -93,7 +94,7 @@ fun JoinGroupScreen(navController: NavController, viewModel: JoinGroupViewModel 
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "자녀에게 받은 6자리 초대 코드를 입력해 주세요",
+                "가족에게 받은 6자리 초대 코드를 입력해 주세요",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline
             )
