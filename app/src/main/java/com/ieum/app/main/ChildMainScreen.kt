@@ -62,7 +62,7 @@ fun ChildMainScreen(navController: NavController, viewModel: ChildViewModel = vi
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "아직 가족 그룹이 없어요\n그룹을 만들어 가족을 초대해보세요",
+                            "아직 가족 그룹이 없어요\n그룹을 만들거나 초대 코드로 참여해보세요",
                             fontSize = 16.sp, fontWeight = FontWeight.W700, color = Ink,
                             textAlign = TextAlign.Center
                         )
@@ -74,6 +74,16 @@ fun ChildMainScreen(navController: NavController, viewModel: ChildViewModel = vi
                             colors = ButtonDefaults.buttonColors(containerColor = Coral)
                         ) {
                             Text("가족 그룹 만들기", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = { navController.navigate(NavRoute.JoinGroup.route) },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Coral),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Coral)
+                        ) {
+                            Text("초대 코드로 참여하기", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
