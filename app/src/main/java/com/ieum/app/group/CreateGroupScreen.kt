@@ -118,7 +118,7 @@ fun CreateGroupScreen(navController: NavController, viewModel: CreateGroupViewMo
                 Spacer(Modifier.height(28.dp))
                 Button(
                     onClick = {
-                        navController.navigate(NavRoute.Chat.route) {
+                        navController.navigate(NavRoute.ChildMain.route) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
@@ -128,7 +128,7 @@ fun CreateGroupScreen(navController: NavController, viewModel: CreateGroupViewMo
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("\uD83D\uDCAC  채팅 시작하기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("메인화면으로 이동", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
